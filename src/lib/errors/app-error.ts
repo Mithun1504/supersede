@@ -1,0 +1,39 @@
+export type ErrorCode =
+  | "BAD_REQUEST"
+  | "UNAUTHENTICATED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "CONFLICT"
+  | "VALIDATION_FAILED"
+  | "DEPENDENCY_UNAVAILABLE"
+  | "INTERNAL_ERROR";
+
+export class AppError extends Error {
+  readonly code: ErrorCode;
+  readonly status: number;
+  readonly detail: string | undefined;
+
+  constructor({
+    code,
+    message,
+    status,
+    detail,
+    cause,
+  }: {
+    code: ErrorCode;
+    message: string;
+    status: number;
+    detail?: string;
+    cause?: unknown;
+  }) {
+    super(message, { cause });
+    this.name = "AppError";
+    this.code = code;
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+export function isAppError(error: unknown): error is AppError {
+  return error instanceof AppError;
+}

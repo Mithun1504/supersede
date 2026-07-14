@@ -1,0 +1,9 @@
+.next
+coverage
+node_modules
+playwright-report
+pnpm-lock.yaml
+test-results
+database/migrations
+docs/PRD.md
+docs/TECH_STACK.md

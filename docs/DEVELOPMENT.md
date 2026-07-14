@@ -1,0 +1,136 @@
+# Development guide
+
+## Architecture at a glance
+
+Supersede is a modular TypeScript monolith built with Next.js App Router. React Server Components
+perform internal reads directly through domain services. Server Actions will own first-party
+mutations; versioned Route Handlers are reserved for integrations, webhooks, streaming, and the
+public API.
+
+The initial infrastructure boundary is:
+
+- Vercel for the web application and API;
+- Neon PostgreSQL with pgvector and RLS;
+- WorkOS AuthKit for human identity and organization sessions;
+- Cloudflare R2 for working objects and S3 Object Lock for retained audit bundles;
+- OpenAI Responses API for governed generation and Gemini Embedding 2 for embeddings;
+- Inngest for retriable workflows and due-work dispatch.
+
+All provider clients are lazy. The project can lint, test, and build without credentials; a service
+throws a clear configuration error only when code attempts to use it.
+
+## Folder ownership
+
+```text
+src/app/             App Router pages, layouts, route handlers, and errors
+src/components/ui/   Owned shadcn primitives
+src/components/      Reusable product-level components and providers
+src/modules/         Domain policy, services, repositories, and public module APIs
+src/db/              Drizzle schema, database client, and tenant transaction context
+src/ai/              Prompt contracts, structured schemas, provider clients, and eval assets
+src/inngest/          Durable workflow client and functions
+src/lib/              Cross-cutting API, environment, logging, security, and storage utilities
+database/migrations/ Database-native schema and security invariants
+database/tests/      SQL invariant checks
+tests/               Unit, component, eval, mocks, and Playwright suites
+```
+
+Do not import one domain module's private repository from another module. Add a public service or
+domain event instead. Shared code belongs in `src/lib` only when it has no domain meaning.
+
+## Environment configuration
+
+Copy `.env.example` to `.env.local`. Empty optional provider variables are accepted by the scaffold.
+The server environment parser validates every supplied value and secrets are never exported to
+client bundles.
+
+For local MinIO, use:
+
+```text
+R2_ACCESS_KEY_ID=minioadmin
+R2_SECRET_ACCESS_KEY=minioadmin
+R2_ENDPOINT=http://localhost:9000
+AWS_ACCESS_KEY_ID=minioadmin
+AWS_SECRET_ACCESS_KEY=minioadmin
+S3_ENDPOINT=http://localhost:9000
+S3_AUDIT_BUCKET=supersede-audit-development
+```
+
+The MinIO console is available at `http://localhost:9001`.
+
+## Authentication and tenant authorization
+
+WorkOS proves human and organization identity. Product roles stay in PostgreSQL. Never authorize a
+domain action from WorkOS role metadata or client input.
+
+The request flow is:
+
+1. `src/proxy.ts` propagates the encrypted AuthKit session and applies a nonce-based CSP.
+2. A Server Component, Server Action, or Route Handler calls the identity module.
+3. `app.resolve_actor()` maps WorkOS identifiers to one active internal membership.
+4. `withTenantContext()` starts a transaction and sets organization and actor IDs with
+   transaction-local PostgreSQL settings.
+5. RLS and service policy both enforce access.
+
+Production must use a dedicated non-owner application database role. Grant it only the required
+table privileges and `EXECUTE` on `app.resolve_actor(text, text)`; do not deploy using the migration
+owner. The migration owner is used only for schema changes.
+
+## Database changes
+
+Edit the Drizzle schema, then generate a reviewed migration:
+
+```bash
+pnpm db:generate
+```
+
+Database-native behavior such as RLS, triggers, recursive CTE helpers, vector indexes, and grants
+belongs in a named custom SQL migration. Never run `db:push` against shared or production databases.
+Production migrations follow expand/migrate/contract sequencing and do not run during application
+startup.
+
+`approval_record` and `audit_event` are insert-only at the database layer. Approvals always point to
+a version ID; feature work must not weaken that constraint.
+
+## UI and design system
+
+Theme values live in `src/app/globals.css` as OKLCH custom properties. Use semantic utilities such as
+`bg-background`, `text-muted-foreground`, `border-border`, `text-success`, and confidence tokens.
+Do not add ad hoc hex values or product-wide palette classes in components.
+
+Use components in `src/components/ui` before building custom controls. Extend variants centrally
+with class-variance-authority. Keep Server Components as the default and add `"use client"` only at
+the smallest interactive boundary.
+
+## API conventions
+
+- External routes live under `/api/v1`.
+- Validate inputs with Zod and return RFC 9457-style problem details.
+- Include `x-request-id` in every response and log only opaque IDs.
+- Require `Idempotency-Key` on workflow-starting writes.
+- Authenticate and authorize each handler even when proxy matching is enabled.
+- State transitions, their ApprovalRecord, and outbox events commit in one transaction.
+
+The development OpenAPI document is available at `/api/v1/openapi`.
+
+## Testing
+
+- Vitest: domain utilities, API contracts, and AI schema/eval fixtures.
+- Testing Library + axe-core: components and accessibility.
+- SQL tests: RLS/trigger/catalog invariants.
+- Playwright: browser-to-API smoke paths and, later, the five-minute demo story.
+- MSW: external HTTP mocks. Live model calls are opt-in and never required for ordinary pull
+  requests.
+
+Every model or prompt change must update its version and pass a labeled eval. Never replace an
+ambiguous result with a forced old/new classification.
+
+## Security and privacy
+
+- Use fictional data only until production privacy and processor gates are complete.
+- Do not log source text, probe answers, emails, tokens, cookies, or signed URLs.
+- Treat uploaded document instructions as untrusted content.
+- Keep object buckets private and issue short-lived signed URLs.
+- Store approved WORM exports in S3 Object Lock when policy requires it.
+- Do not describe the product as regulator-grade until the approval, retention, and export controls
+  are verified.
