@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
 import * as schema from "@/db/schema";
-import { organizations, roles } from "@/db/schema";
+import { organizationSettings, organizations, roles } from "@/db/schema";
 
 const roleSeed = [
   ["org_admin", "Organization configuration and membership administration"],
@@ -36,11 +36,24 @@ async function seed() {
     .limit(1);
 
   if (existingOrganization.length === 0) {
-    await database.insert(organizations).values({
-      name: "Supersede Fictional Hospital",
-      workosOrganizationId: "org_demo_supersede",
-      configuration: "displace",
-      individualResultsVisible: false,
+    await database.transaction(async (transaction) => {
+      const [organization] = await transaction
+        .insert(organizations)
+        .values({
+          name: "Supersede Fictional Hospital",
+          workosOrganizationId: "org_demo_supersede",
+          productConfiguration: "displace",
+        })
+        .returning({ id: organizations.id });
+
+      if (!organization) {
+        throw new Error("Organization seed insert returned no row.");
+      }
+
+      await transaction.insert(organizationSettings).values({
+        organizationId: organization.id,
+        individualResultPolicy: "aggregate_only",
+      });
     });
   }
 
