@@ -31,7 +31,7 @@
     "db:push": "dotenv -e .env.local -- drizzle-kit push",
     "db:studio": "dotenv -e .env.local -- drizzle-kit studio",
     "db:seed": "dotenv -e .env.local -- tsx scripts/seed.ts",
-    "db:test": "dotenv -e .env.local -- psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f database/tests/foundation.sql",
+    "db:test": "dotenv -e .env.local -- psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f database/tests/foundation.sql -f database/tests/schema-invariants.sql",
     "inngest:dev": "pnpm dlx inngest-cli@latest dev -u http://localhost:3000/api/inngest",
     "eval": "vitest run tests/evals",
     "prepare": "husky"
