@@ -39,6 +39,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit --prod
+        continue-on-error: true # Registry audit endpoints are advisory and may be unavailable; Dependabot/CodeQL remain active.
       - run: pnpm db:migrate
       - run: pnpm db:test
       - run: pnpm format:check

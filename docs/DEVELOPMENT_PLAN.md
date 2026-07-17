@@ -529,7 +529,8 @@ Build adapters only after the in-app core loop is complete.
 **Order**
 
 1. in-app notifications and simulated seeded-persona runner;
-2. Postmark delivery with signed/deduplicated webhooks;
+2. Postmark delivery with HTTPS Basic-authenticated, IP-allowlisted, deduplicated webhooks (Postmark
+   does not emit an HMAC signature);
 3. Slack adapter;
 4. HRIS CSV import with preview, mapping, partial-row errors, and deprovision behavior;
 5. xAPI export, then SCORM only if required.

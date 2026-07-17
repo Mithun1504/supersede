@@ -28,6 +28,8 @@ DECLARE
   policy_count integer;
   foreign_key_count integer;
   tenant_guard_count integer;
+  permission_count integer;
+  runtime_role_count integer;
 BEGIN
   SELECT array_agg(tablename ORDER BY tablename)
     INTO actual_tables
@@ -79,6 +81,91 @@ BEGIN
   END IF;
   IF NOT ('cancelled' = ANY(enum_range(NULL::workflow_status)::text[])) THEN
     RAISE EXCEPTION 'workflow_status.cancelled is missing';
+  END IF;
+
+  SELECT count(*) INTO permission_count FROM permission;
+  IF permission_count <> 30 THEN
+    RAISE EXCEPTION 'expected 30 stable application permissions, found %', permission_count;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM role
+    WHERE code IN ('case_approver', 'release_authorizer', 'learner')
+      AND configuration_scope IS DISTINCT FROM 'displace'
+  ) THEN
+    RAISE EXCEPTION 'Displace-only role configuration scope is missing';
+  END IF;
+
+  SELECT count(*) INTO runtime_role_count
+  FROM pg_roles
+  WHERE rolname IN ('supersede_app', 'supersede_worker')
+    AND NOT rolsuper AND NOT rolbypassrls AND NOT rolcanlogin;
+  IF runtime_role_count <> 2 THEN
+    RAISE EXCEPTION 'hardened runtime group roles are missing or overprivileged';
+  END IF;
+
+  IF to_regprocedure('app.resolve_webhook_organization(text)') IS NULL THEN
+    RAISE EXCEPTION 'signed webhook tenant resolver is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM role_permission
+    WHERE role_code = 'edge_reviewer' AND permission_code = 'artifact.verify'
+  ) THEN
+    RAISE EXCEPTION 'artifact verification has no initial eligible reviewer capability';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM ai_prompt_version
+    WHERE task_type = 'claim_extraction'
+      AND prompt_version = 'claim_extraction_v1'
+      AND schema_version = '1.0.0'
+      AND prompt_sha256 = '4bc333060c979f4a241777f705bebfc0f5584ce85deb10f4f5720ee25bd9f01e'
+      AND status = 'approved'
+  ) THEN
+    RAISE EXCEPTION 'approved claim extraction prompt contract is missing or stale';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM ai_prompt_version
+    WHERE task_type = 'artifact_feedback'
+      AND prompt_version = 'artifact_feedback_v1'
+      AND schema_version = '1.0.0'
+      AND prompt_sha256 = 'c435aa7565bb165d4a93737ce4dbacacefc8122aa85c2693c238ecd5153d4903'
+      AND status = 'approved'
+  ) THEN
+    RAISE EXCEPTION 'approved artifact feedback prompt contract is missing or stale';
+  END IF;
+
+  IF to_regprocedure('app.resolve_notification_delivery(text)') IS NULL THEN
+    RAISE EXCEPTION 'Postmark delivery tenant resolver is missing';
+  END IF;
+
+  IF NOT has_function_privilege(
+    'supersede_worker',
+    'app.active_organization_ids()',
+    'EXECUTE'
+  ) OR NOT has_function_privilege(
+    'supersede_app',
+    'app.resolve_notification_delivery(text)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'restricted runtime roles cannot execute required tenant boundary functions';
+  END IF;
+
+  IF to_regclass('notification_delivery_notification_channel_uq') IS NULL THEN
+    RAISE EXCEPTION 'notification delivery channel idempotency index is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM ai_prompt_version
+    WHERE task_type = 'divergence_case_generation'
+      AND prompt_version = 'divergence_case_v1'
+      AND schema_version = '1.0.0'
+      AND prompt_sha256 = '31e01106e395d74d2d1b23fca5c4cb876bb6557114dccbde4c66d08eb1a0ba96'
+      AND status = 'approved'
+  ) THEN
+    RAISE EXCEPTION 'approved divergence case prompt contract is missing or stale';
   END IF;
 END;
 $$;

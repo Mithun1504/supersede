@@ -24,9 +24,9 @@ const foundations = [
       "Provider boundaries preserve citations, model provenance, and explicit uncertainty.",
   },
   {
-    title: "Ready to extend",
+    title: "Change to outcome",
     description:
-      "Domain modules, typed APIs, durable jobs, tests, and local infrastructure are wired.",
+      "Propagate maps blast radius; Displace delivers governed probes, correction, and rechecks.",
   },
 ] as const;
 
@@ -37,15 +37,15 @@ export default function Home() {
       <main>
         <section className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center lg:py-28">
           <div className="space-y-6">
-            <Badge variant="secondary">Project foundation</Badge>
+            <Badge variant="secondary">Governed change intelligence</Badge>
             <div className="space-y-4">
               <h1 className="max-w-3xl text-4xl font-semibold text-balance sm:text-6xl">
-                Version control for organizational knowledge.
+                Version control for governed organizational decisions.
               </h1>
               <p className="text-muted-foreground max-w-2xl text-lg leading-8 text-pretty">
-                The production scaffold is ready for the evidence, propagation,
-                approval, and remediation features defined in the product
-                specification.
+                Trace source changes through reviewed dependencies, governed
+                approvals, artifact remediation, and observable workforce
+                outcomes.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -62,10 +62,10 @@ export default function Home() {
           </div>
           <Card>
             <CardHeader>
-              <CardTitle>Foundation status</CardTitle>
+              <CardTitle>Production controls</CardTitle>
               <CardDescription>
-                Infrastructure only; business features intentionally remain
-                unbuilt.
+                Evidence, separation of duties, privacy boundaries, and durable
+                workflows are enforced throughout.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">

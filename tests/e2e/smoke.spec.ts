@@ -13,7 +13,7 @@ test("public scaffold and health endpoint are available", async ({
 
   await expect(
     page.getByRole("heading", {
-      name: "Version control for organizational knowledge.",
+      name: "Version control for governed organizational decisions.",
     }),
   ).toBeVisible();
   await expect(

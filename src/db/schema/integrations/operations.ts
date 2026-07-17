@@ -249,6 +249,10 @@ export const notificationDeliveries = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
+    uniqueIndex("notification_delivery_notification_channel_uq").on(
+      t.notificationId,
+      t.channel,
+    ),
     uniqueIndex("notification_delivery_provider_message_uq")
       .on(t.channel, t.providerMessageId)
       .where(sql`${t.providerMessageId} is not null`),

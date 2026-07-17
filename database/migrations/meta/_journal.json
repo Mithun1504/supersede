@@ -36,6 +36,76 @@
       "when": 1784112232385,
       "tag": "0004_nice_surge",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784133796043,
+      "tag": "0005_authorization_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784134517138,
+      "tag": "0006_identity_sync_boundaries",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784134950902,
+      "tag": "0007_governance_permission_alignment",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784135600000,
+      "tag": "0008_claim_extraction_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784136200000,
+      "tag": "0009_system_tenant_dispatch",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784136800000,
+      "tag": "0010_artifact_feedback_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784137400000,
+      "tag": "0011_postmark_delivery_boundary",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784138000000,
+      "tag": "0012_exercise_approval_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784138600000,
+      "tag": "0013_divergence_case_prompt",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1784139200000,
+      "tag": "0014_notification_delivery_idempotency",
+      "breakpoints": true
     }
   ]
 }

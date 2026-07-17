@@ -1,7 +1,9 @@
 export function createContentSecurityPolicy(
   nonce: string,
   development: boolean,
+  storageOrigin?: string,
 ): string {
+  const storage = storageOrigin ? ` ${storageOrigin}` : "";
   const directives = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ""}`,
@@ -12,7 +14,7 @@ export function createContentSecurityPolicy(
     "base-uri 'self'",
     "form-action 'self' https://*.workos.com",
     "frame-ancestors 'none'",
-    "connect-src 'self' https://api.workos.com https://*.workos.com https://*.sentry.io",
+    `connect-src 'self' https://api.workos.com https://*.workos.com https://*.sentry.io${storage}`,
     "upgrade-insecure-requests",
   ];
 

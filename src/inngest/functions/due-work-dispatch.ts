@@ -1,20 +1,34 @@
 import { inngest } from "@/inngest/client";
-import { logger } from "@/lib/observability/logger";
+import {
+  dispatchDueRechecksForOrganization,
+  listActiveOrganizationIds,
+} from "@/modules/learning/rechecks";
 
 export const dueWorkDispatch = inngest.createFunction(
   {
-    id: "due-work-dispatch",
-    name: "Dispatch due work",
-    triggers: { cron: "0 3 * * *" },
-    retries: 3,
+    id: "due-work-dispatch-v1",
+    name: "Dispatch due rechecks",
+    retries: 4,
+    triggers: { cron: "0 * * * *" },
   },
   async ({ step }) => {
-    return step.run("locate-due-work", () => {
-      logger.info(
-        { workflow: "due-work-dispatch" },
-        "Due-work dispatcher is ready",
+    const organizationIds = await step.run(
+      "list-active-organizations",
+      listActiveOrganizationIds,
+    );
+    const results = [];
+    for (const organizationId of organizationIds)
+      results.push(
+        await step.run(`dispatch-${organizationId}`, () =>
+          dispatchDueRechecksForOrganization(organizationId),
+        ),
       );
-      return { dispatched: 0, scaffold: true };
-    });
+    return results.reduce(
+      (total, item) => ({
+        dispatched: total.dispatched + item.dispatched,
+        blocked: total.blocked + item.blocked,
+      }),
+      { dispatched: 0, blocked: 0 },
+    );
   },
 );

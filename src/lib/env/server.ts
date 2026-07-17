@@ -12,6 +12,11 @@ const optionalUrl = z.preprocess(
   z.string().url().optional(),
 );
 
+const booleanFromString = z.preprocess(
+  (value) => value === true || value === "true",
+  z.boolean(),
+);
+
 const serverEnvSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
@@ -24,7 +29,9 @@ const serverEnvSchema = z.object({
   WORKOS_API_KEY: optionalSecret,
   WORKOS_CLIENT_ID: optionalSecret,
   WORKOS_COOKIE_PASSWORD: optionalSecret,
+  WORKOS_WEBHOOK_SECRET: optionalSecret,
   WORKOS_REDIRECT_URI: optionalUrl,
+  CURATED_DEMO_UPLOADS: booleanFromString.default(false),
   R2_ACCOUNT_ID: optionalSecret,
   R2_ACCESS_KEY_ID: optionalSecret,
   R2_SECRET_ACCESS_KEY: optionalSecret,
@@ -37,6 +44,10 @@ const serverEnvSchema = z.object({
   S3_ENDPOINT: optionalUrl,
   OPENAI_API_KEY: optionalSecret,
   OPENAI_PRIMARY_MODEL: optionalSecret.default("gpt-5.6"),
+  APPLICATION_RELEASE_SHA: z
+    .string()
+    .regex(/^[0-9a-f]{40}$/)
+    .default("0000000000000000000000000000000000000000"),
   GEMINI_API_KEY: optionalSecret,
   EMBEDDING_MODEL: optionalSecret.default("gemini-embedding-2"),
   EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().default(768),
@@ -44,9 +55,15 @@ const serverEnvSchema = z.object({
   INNGEST_SIGNING_KEY: optionalSecret,
   POSTMARK_SERVER_TOKEN: optionalSecret,
   POSTMARK_WEBHOOK_SECRET: optionalSecret,
+  POSTMARK_FROM_EMAIL: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().email().optional(),
+  ),
+  SLACK_BOT_TOKEN: optionalSecret,
   SENTRY_DSN: optionalUrl,
   SENTRY_AUTH_TOKEN: optionalSecret,
   REPORT_SIGNING_SECRET: optionalSecret,
+  FIELD_ENCRYPTION_KEY: optionalSecret,
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
@@ -81,6 +98,7 @@ export function getConfigurationStatus(env = getServerEnv()) {
     ),
     inngest: Boolean(env.INNGEST_EVENT_KEY && env.INNGEST_SIGNING_KEY),
     sentry: Boolean(env.SENTRY_DSN),
+    slack: Boolean(env.SLACK_BOT_TOKEN),
   } as const;
 }
 

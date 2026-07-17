@@ -1,9 +1,8 @@
 # Supersede
 
-Supersede is an evidence-backed change-propagation platform. This repository currently contains
-the production scaffold only: framework, design system, identity boundary, database foundations,
-provider adapters, workflow runtime, API conventions, observability, tests, and local tooling.
-Business features described in [`docs/PRD.md`](./docs/PRD.md) are intentionally not implemented.
+Supersede is an evidence-backed change-propagation platform. Propagate traces governed source
+changes through reviewed dependencies and artifact remediation; Displace adds audience snapshots,
+cold probes, applied correction work, and spaced rechecks.
 
 ## Prerequisites
 
@@ -24,15 +23,18 @@ pnpm db:seed
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). WorkOS is optional for an unprivileged local
-scaffold run; configure its variables to test the real hosted sign-in flow. Authentication fails
-closed on the `/app` surface in production when WorkOS is not configured.
+Open [http://localhost:3000](http://localhost:3000). The public site runs without WorkOS, while the
+`/app` workspace always fails closed until AuthKit is configured. There is no development auth
+bypass.
 
 Run Inngest's local development server in a second terminal:
 
 ```bash
 pnpm inngest:dev
 ```
+
+The hackathon's fictional eight-person audience is an explicit optional operation documented in
+`docs/DEVELOPMENT.md`; it is never created by normal production provisioning.
 
 ## Verification
 
@@ -46,6 +48,19 @@ pnpm test:e2e
 ```
 
 Database invariants can be checked after migrations with `pnpm db:test`.
+
+Use `E2E_PORT=3100 pnpm test:e2e` when port 3000 is occupied.
+
+## Deployment configuration
+
+Provision WorkOS, Neon/pgvector, private R2 working storage, S3 Object Lock audit storage, Inngest,
+OpenAI, Gemini, and configured delivery providers before production. Configure Postmark webhook
+Basic authentication and IP allowlisting, and grant the Slack bot only `chat:write` and
+`users:read.email`. Generate
+`FIELD_ENCRYPTION_KEY` with `openssl rand -base64 32` and keep it in the deployment secret store;
+losing it makes encrypted learner submissions unrecoverable. Set `APPLICATION_RELEASE_SHA` to the
+40-character deployed Git commit. Apply migrations with the migration owner, then run the app with
+the restricted runtime role described in the development guide.
 
 ## Important boundaries
 

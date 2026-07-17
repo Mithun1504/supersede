@@ -1157,6 +1157,8 @@ governance notices.
 
 - `id uuid` PK; `organization_id`; `notification_id` FK.
 - `channel`; `integration_connection_id` nullable; `provider_message_id` nullable.
+- Unique `(notification_id, channel)`; retries update the same delivery row and increment
+  `attempt_count`.
 - `status processing_status`; `attempt_count`; `last_attempt_at`; `delivered_at`;
   `error_summary`; `created_at`, `updated_at`.
 - Unique provider message ID; retry queue index.

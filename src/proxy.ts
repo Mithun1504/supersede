@@ -29,6 +29,11 @@ export default async function proxy(request: NextRequest) {
   const contentSecurityPolicy = createContentSecurityPolicy(
     nonce,
     process.env.NODE_ENV !== "production",
+    process.env.R2_ENDPOINT
+      ? new URL(process.env.R2_ENDPOINT).origin
+      : process.env.R2_ACCOUNT_ID
+        ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
+        : undefined,
   );
   let requestHeaders = new Headers(request.headers);
   let responseHeaders: Headers | undefined;
