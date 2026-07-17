@@ -1,2 +1,14 @@
-/** Probe, remediation, and recheck domain public API. Feature services will be exported here. */
-export {};
+export {
+  planRechecks,
+  releaseBlockedRecheck,
+  type RecheckPlan,
+} from "@/modules/learning/rechecks";
+export {
+  completeRemediation,
+  dispatchDueRechecks,
+  releaseBlockedRechecksForApprovedCase,
+} from "@/modules/learning/service";
+export {
+  completeProbeResponse,
+  openProbeAssignment,
+} from "@/modules/learning/probes";

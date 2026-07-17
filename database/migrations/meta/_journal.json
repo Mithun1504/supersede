@@ -15,6 +15,48 @@
       "when": 1784052646082,
       "tag": "0001_security_invariants",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784107391211,
+      "tag": "0002_flowery_namora",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784107400875,
+      "tag": "0003_domain_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784107907949,
+      "tag": "0004_lumpy_emma_frost",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784108333572,
+      "tag": "0005_third_fenris",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784108689451,
+      "tag": "0006_scheduler_primitives",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784126709378,
+      "tag": "0007_chief_psynapse",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { inngest } from "@/inngest/client";
-import { logger } from "@/lib/observability/logger";
+import { dispatchDueRechecks } from "@/modules/learning";
 
 export const dueWorkDispatch = inngest.createFunction(
   {
@@ -9,12 +9,6 @@ export const dueWorkDispatch = inngest.createFunction(
     retries: 3,
   },
   async ({ step }) => {
-    return step.run("locate-due-work", () => {
-      logger.info(
-        { workflow: "due-work-dispatch" },
-        "Due-work dispatcher is ready",
-      );
-      return { dispatched: 0, scaffold: true };
-    });
+    return step.run("dispatch-due-rechecks", () => dispatchDueRechecks());
   },
 );

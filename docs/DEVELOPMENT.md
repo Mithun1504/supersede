@@ -58,6 +58,15 @@ S3_AUDIT_BUCKET=supersede-audit-development
 
 The MinIO console is available at `http://localhost:9001`.
 
+If those host ports are already occupied, keep MinIO's container ports stable
+and choose alternate host ports:
+
+```bash
+MINIO_API_PORT=9010 MINIO_CONSOLE_PORT=9011 docker compose up -d minio minio-init
+```
+
+Then set `R2_ENDPOINT` and `S3_ENDPOINT` to `http://localhost:9010`.
+
 ## Authentication and tenant authorization
 
 WorkOS proves human and organization identity. Product roles stay in PostgreSQL. Never authorize a
@@ -72,9 +81,9 @@ The request flow is:
    transaction-local PostgreSQL settings.
 5. RLS and service policy both enforce access.
 
-Production must use a dedicated non-owner application database role. Grant it only the required
-table privileges and `EXECUTE` on `app.resolve_actor(text, text)`; do not deploy using the migration
-owner. The migration owner is used only for schema changes.
+Production uses `DATABASE_RUNTIME_URL` for the dedicated non-owner `supersede_app` role created by
+the migrations. `DATABASE_URL` remains migration-owner-only. Do not deploy application queries with
+the migration owner.
 
 ## Database changes
 

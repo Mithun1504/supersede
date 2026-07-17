@@ -75,6 +75,9 @@ export const auditEvents = pgTable(
     actorMembershipId: uuid("actor_membership_id").references(
       () => memberships.id,
     ),
+    actorRoleCode: varchar("actor_role_code", { length: 64 }).references(
+      () => roles.code,
+    ),
     eventType: varchar("event_type", { length: 128 }).notNull(),
     objectType: varchar("object_type", { length: 64 }).notNull(),
     objectId: uuid("object_id").notNull(),
@@ -157,6 +160,34 @@ export const workflowRuns = pgTable(
       table.organizationId,
       table.subjectType,
       table.subjectId,
+    ),
+  ],
+);
+
+export const apiRateLimitBuckets = pgTable(
+  "api_rate_limit_bucket",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    actorMembershipId: uuid("actor_membership_id")
+      .notNull()
+      .references(() => memberships.id),
+    scope: varchar("scope", { length: 64 }).notNull(),
+    windowStartedAt: timestamp("window_started_at", {
+      withTimezone: true,
+    }).notNull(),
+    requestCount: integer("request_count").notNull().default(1),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("api_rate_limit_bucket_actor_scope_uq").on(
+      table.organizationId,
+      table.actorMembershipId,
+      table.scope,
     ),
   ],
 );

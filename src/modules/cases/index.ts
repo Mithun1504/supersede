@@ -1,2 +1,10 @@
-/** Divergence-case domain public API. Feature services will be exported from this boundary. */
-export {};
+export {
+  assertCaseApprovalAllowed,
+  assertReleaseAuthorizationAllowed,
+} from "@/modules/cases/policy";
+export {
+  approveCaseVersion,
+  authorizeCaseRelease,
+  draftCaseVersion,
+  retireCaseVersion,
+} from "@/modules/cases/service";

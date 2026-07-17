@@ -1,2 +1,9 @@
-/** ChangeEvent domain public API. Feature services will be exported from this boundary. */
-export {};
+export {
+  assertChangeValidationAllowed,
+  measureChangeLatency,
+} from "@/modules/changes/policy";
+export {
+  enterChangeEvent,
+  recordReportCompleted,
+  validateChangeEvent,
+} from "@/modules/changes/service";

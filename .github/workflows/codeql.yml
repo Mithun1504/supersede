@@ -13,6 +13,9 @@ permissions:
 
 jobs:
   analyze:
+    # Private-repository SARIF upload requires GitHub Code Security. Keep the
+    # workflow ready without turning a paid GitHub feature into a red build.
+    if: github.event.repository.visibility == 'public'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

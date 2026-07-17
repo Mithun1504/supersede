@@ -183,7 +183,8 @@ The PRD's model should be normalized into logical identities and immutable versi
 - Confidence and scores use constrained numeric columns (`0 <= value <= 1`) and store a human-readable rationale separately.
 - Evidence stores `document_version_id`, exact quote, page/section, start/end offsets, and the chunk/file checksum. Offsets alone are not sufficient after a document changes.
 - Edges are typed and directionally explicit. Recursive traversal tracks visited IDs, rejects cycles in paths where cycles are invalid, and applies a configured maximum depth.
-- Individual probe visibility is an organization policy. Aggregate queries must enforce minimum cohort size before returning breakdowns.
+- Traversal retains complete paths and stops at eight hops.
+- Individual probe visibility is an organization policy. Aggregate queries enforce a minimum cohort size of five before returning breakdowns.
 - Use database timestamps in UTC and retain the user's display timezone separately.
 - Soft deletion is not versioning. Governed records are retired/superseded; storage retention follows policy.
 
@@ -250,6 +251,8 @@ Each task gets its own prompt, schema, eval set, and model settings:
 - Do not store hidden chain-of-thought. Store only requested concise rationales and evidence.
 - Version prompts in source control and in the database execution record.
 - Model confidence is not calibrated probability. Display it as an extraction aid and measure it against labeled data before setting thresholds.
+- Extraction confidence 0.80 separates normal and low-confidence review queues; it never auto-approves output.
+- Free-text grading may return `old` or `new` only at confidence 0.80 or higher with a matched approved-case rationale.
 - Free-text grading may return `other`; it must never be coerced to old/new to improve dashboard completion.
 - Learner-facing cases require human approval regardless of model confidence.
 - Use an environment variable such as `OPENAI_PRIMARY_MODEL=gpt-5.6`; changing it requires an eval run and an engineering approval record.
@@ -270,7 +273,7 @@ Each task gets its own prompt, schema, eval set, and model settings:
 |---|---|
 | Working object storage | Cloudflare R2, private environment-specific buckets |
 | Regulated export storage | Amazon S3 with Object Lock for approved WORM bundles |
-| Parsing | `pdfjs-dist` for text PDFs, `mammoth` for DOCX, `xlsx`/SheetJS for spreadsheets, and native parsers for text/Markdown/HTML |
+| Parsing | `pdfjs-dist` for text PDFs, `mammoth` for DOCX, `read-excel-file` for XLSX, and native parsers for text/Markdown/HTML |
 | Packaging | `jszip` for checksummed audit bundles and the initial SCORM export |
 | Integrity | SHA-256 for every uploaded file, extracted-text artifact, and report member |
 
@@ -293,6 +296,8 @@ Each task gets its own prompt, schema, eval set, and model settings:
 9. Persist a parser/extractor manifest and expose any unsupported pages or parsing warnings to reviewers.
 
 Scanned PDFs require an OCR path. For the vertical slice, reject or visibly flag image-only documents; do not claim full ingestion coverage. A production OCR adapter can use an approved document-AI service or rendered-page vision extraction after privacy review.
+
+The initial upload cap is 25 MB per file via direct signed object-storage upload. Supported inputs are pasted text, TXT, Markdown, HTML, DOCX, XLSX, and text-based PDF.
 
 ### 4.8 Search, indexing, retrieval, and graph traversal
 
@@ -317,6 +322,7 @@ Scanned PDFs require an OCR path. For the vertical slice, reject or visibly flag
 - Store index/model versions so re-embedding can run side-by-side and switch atomically.
 - A blast radius begins from validated source/version changes and follows only active, reviewed edges by default. Unreviewed candidates appear separately.
 - Return the complete path and evidence for each impacted artifact/person, not just an unexplained score.
+- Reviewed impacts at or above 0.65 default to `rewrite_required`; reviewers may override with an audited reason.
 
 ### 4.9 Background jobs and workflow orchestration
 
@@ -384,6 +390,8 @@ Record `assigned`, provider-accepted, delivered/bounced, opened when available, 
 **Alternatives considered.** React PDF is deterministic but requires a second layout implementation. Server-side office documents are not a PRD requirement. Full LMS integration is too broad for the hackathon.
 
 The report template must use an allow-list vocabulary and a test that fails on prohibited claims such as `belief`, `knows`, or `competent`. Exports include the report query cutoff, tenant, ChangeEvent version, included object versions, approvals, generation software version, and checksum manifest. A checksum proves bundle integrity after creation; it does not by itself prove regulatory acceptance.
+
+The vertical slice requires a checksummed PDF plus JSON/CSV bundle. WORM storage is used only when an existing S3 Object Lock bucket is configured, and the UI must state the actual retention mode.
 
 ### 4.12 Hosting, deployment, and infrastructure
 

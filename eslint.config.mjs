@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "coverage/**",
     "playwright-report/**",
     "test-results/**",
+    ".vercel/**",
     "database/migrations/**",
     "next-env.d.ts",
   ]),

@@ -4,30 +4,20 @@ import {
   OpenApiGeneratorV3,
 } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
-
-import { healthResponseSchema } from "@/app/api/v1/health/route";
-import { problemDetailsSchema } from "@/lib/api/problem-details";
+import { registerArtifactAndAuditPaths } from "@/lib/api/openapi/artifact-audit";
+import { registerOpenApiSchemas } from "@/lib/api/openapi/schemas";
+import { registerSystemAiAndCorpusPaths } from "@/lib/api/openapi/system-ai-corpus";
+import { registerWorkflowPaths } from "@/lib/api/openapi/workflow";
 
 extendZodWithOpenApi(z);
 
 export function createOpenApiDocument() {
   const registry = new OpenAPIRegistry();
 
-  registry.register("ProblemDetails", problemDetailsSchema);
-  registry.registerPath({
-    method: "get",
-    path: "/api/v1/health",
-    summary: "Report application liveness and provider configuration",
-    tags: ["System"],
-    responses: {
-      200: {
-        description: "Application is running.",
-        content: {
-          "application/json": { schema: healthResponseSchema },
-        },
-      },
-    },
-  });
+  registerOpenApiSchemas(registry);
+  registerSystemAiAndCorpusPaths(registry);
+  registerWorkflowPaths(registry);
+  registerArtifactAndAuditPaths(registry);
 
   return new OpenApiGeneratorV3(registry.definitions).generateDocument({
     openapi: "3.0.3",

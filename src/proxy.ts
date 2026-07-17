@@ -8,23 +8,15 @@ import { NextResponse } from "next/server";
 
 import { createContentSecurityPolicy } from "@/lib/security/content-security-policy";
 
+const cookiePassword = process.env.WORKOS_COOKIE_PASSWORD;
 const authConfigured = Boolean(
   process.env.WORKOS_API_KEY &&
   process.env.WORKOS_CLIENT_ID &&
-  process.env.WORKOS_COOKIE_PASSWORD,
+  cookiePassword &&
+  cookiePassword.length >= 32,
 );
 
 export default async function proxy(request: NextRequest) {
-  if (
-    process.env.NODE_ENV === "production" &&
-    !authConfigured &&
-    request.nextUrl.pathname.startsWith("/app")
-  ) {
-    return new NextResponse("Authentication is not configured.", {
-      status: 503,
-    });
-  }
-
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const contentSecurityPolicy = createContentSecurityPolicy(
     nonce,

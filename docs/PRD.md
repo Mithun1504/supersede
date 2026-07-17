@@ -1,9 +1,9 @@
 # Supersede — PRD & Spec
 
 **Track:** Education
-**One-liner:** Version control for what an organization believes. Watch the
-sources of truth, walk the dependency graph to everything downstream of a
-dead rule — documents *and people* — retrain on exactly the delta, and
+**One-liner:** Version control for what an organization believes. Register a
+source-of-truth change, walk the dependency graph to everything downstream of
+a dead rule — documents *and people* — retrain on exactly the delta, and
 produce the audit trail that proves the organization actually changed.
 
 *Rev 2 — after external review (sol, 2026-07-14): product split into two
@@ -42,13 +42,13 @@ requires substantiation; a retracted or superseded source is regulatory
 exposure (FDA/EMA). Claims libraries are already structured — the easiest
 graph to build, an existing budget line, and deadline-shaped pain.
 Scope: graph builder + change events + blast radius + artifact remediation +
-audit trail. FRs 1–2, 4–7, 11.
+audit trail. FRs 1–2, 4–6, 11–12.
 
 **Displace (v2 vertical — hospital CME/quality; also the hackathon demo).**
 Adds the people layer: role mapping, instinct probes, artifact-correction
 exercises, decay rechecks. Buyer: CME/quality directors under Joint
 Commission audit pressure.
-Scope: adds FRs 3, 8–10.
+Scope: the Propagate base plus FR-3 and FRs 7–10.
 
 The end users of Displace are professionals being checked. Their experience
 must be short, specific, and dignified — 10 minutes on their actual delta,
@@ -60,8 +60,8 @@ not an hour of generic compliance video. This is the adoption make-or-break.
 - G1: Extract a claims/dependency graph from an organization's corpus with
   per-edge confidence and quoted evidence spans, human-reviewable.
 - G2: On a source-of-truth change, produce a triaged blast-radius report —
-  load-bearing vs peripheral dependencies — within 1 day of the change being
-  entered.
+  load-bearing vs peripheral dependencies — within 1 day of validation.
+  Track entered-to-validated time separately so review delay remains visible.
 - G3 *(Displace)*: Generate expert-approved divergence cases (old rule ≠ new
   rule answers) and identify which affected people **answered with the old
   rule when assessed** — stated exactly that way. A probe measures one
@@ -131,7 +131,14 @@ and version locks.
   runs. Machine-readable diff summary: old rule / new rule / facially
   affected population.
 
-### 5.3 Blast radius & divergence (both; cases are Displace-gated)
+### 5.3 Artifact remediation (both)
+- FR-5: An affected artifact moves through triage → owner assigned → corrected
+  version submitted → expert approved → published. The approved correction is
+  immutable and version-locked; every transition is audited. A human may
+  override the system's rewrite/peripheral classification only with a recorded
+  reason.
+
+### 5.4 Blast radius & divergence (blast radius is both; cases are Displace-gated)
 - FR-6: On validated ChangeEvent: walk the graph, produce the triaged
   report — load-bearing dependents (rewrite required), peripheral mentions
   (line edits), affected people via role mapping (Displace), each with
@@ -143,7 +150,7 @@ and version locks.
   in-flight (a case answered "old" only counts toward metrics if the case
   was approved and unambiguous — see §8).
 
-### 5.4 Probe → remediate → recheck (Displace)
+### 5.5 Probe → remediate → recheck (Displace)
 - FR-8: Instinct probes: approved cases delivered cold (no "the rule
   changed!" banner), 2–4 minutes, mobile-friendly, delivery evidence
   recorded (assigned, opened, completed). Answering with the old rule = an
@@ -155,7 +162,7 @@ and version locks.
   same divergence at 30/90 days (same-case retest measures memorization of
   the probe, not the rule).
 
-### 5.5 Audit & approval workflow (both — this is the product in
+### 5.6 Audit & approval workflow (both — this is the product in
 regulated verticals)
 - FR-11: Audit dashboard per ChangeEvent: % artifacts updated (with version
   locks), % affected people assigned / assessed / remediated /
@@ -167,6 +174,12 @@ regulated verticals)
   version-locked object. Retention policy and export verification
   (checksummed report bundles) included. Without FR-12 the word
   "regulator-grade" is not used anywhere in the product or pitch.
+
+ApprovalRecords are reserved for governed human authorization: ChangeEvent
+validation, dependency-edge acceptance/override, artifact-version approval,
+case approval/retirement, release authorization, and export release/retention
+changes. Every state transition also writes an append-only AuditEvent;
+automated processing, delivery, assessment, and scheduling are not approvals.
 
 ## 6. Architecture
 
@@ -242,11 +255,30 @@ Manual: the ChangeEvent (which is the real v1 design, not a mock).
 
 ## 10. Open questions
 
-- Individual-visible vs aggregate-only reporting: policy default per market
-  (EU works-council constraints)?
 - Pricing: per ChangeEvent processed, per monitored source, or per seat?
   Split by SKU (Propagate per-library, Displace per-seat)?
 - When automated watchers return (v2): which feeds first, and does the
   customer's validation step remain mandatory (recommended: yes)?
 - How much of Boundary Case Atlas's mechanic (find the flipping assumption)
   becomes a learner-facing exercise type vs internal case-gen machinery?
+
+## 11. Locked v1 decisions (2026-07-15)
+
+- Reporting is aggregate by default with a minimum cohort of five. Named
+  results require an explicit organization policy; the fictional demo tenant
+  enables it.
+- Extraction confidence 0.80 separates the normal and low-confidence review
+  queues. Exact quote verification and human review remain mandatory at every
+  score.
+- Load-bearing scores at or above 0.65 default to rewrite required after edge
+  review. Reviewer overrides require an audited reason.
+- Graph traversal is cycle-safe, retains full paths, and stops at eight hops.
+- Free-text probes classify old/new only at confidence 0.80 or higher with a
+  matched approved-case rationale; all other results enter review as `other`.
+- Change owner and validator, case author and approver, and case approver and
+  release authorizer must be distinct actors for the same governed object.
+- A due recheck without a different approved case remains visibly blocked and
+  dispatches immediately after a suitable case is approved. The original case
+  is never reused.
+- Live GPT-5.6 extraction is a completion gate. Seeded extraction is labeled
+  disaster recovery and deterministic test support, never a live substitute.

@@ -14,19 +14,19 @@ import {
 
 const foundations = [
   {
-    title: "Governed by design",
+    title: "Evidence stays attached",
     description:
-      "Tenant context, immutable versions, approvals, and append-only audit primitives.",
+      "Every claim, impact, and case keeps its exact quote, confidence, and versioned source.",
   },
   {
-    title: "Evidence first",
+    title: "Humans authorize",
     description:
-      "Provider boundaries preserve citations, model provenance, and explicit uncertainty.",
+      "AI prioritizes review. It never validates a change, approves a case, or authorizes a release.",
   },
   {
-    title: "Ready to extend",
+    title: "Audit without euphemism",
     description:
-      "Domain modules, typed APIs, durable jobs, tests, and local infrastructure are wired.",
+      "Reports state what was assigned, assessed, remediated, and rechecked—nothing inferred.",
   },
 ] as const;
 
@@ -37,35 +37,35 @@ export default function Home() {
       <main>
         <section className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center lg:py-28">
           <div className="space-y-6">
-            <Badge variant="secondary">Project foundation</Badge>
+            <Badge variant="secondary">Governed change propagation</Badge>
             <div className="space-y-4">
               <h1 className="max-w-3xl text-4xl font-semibold text-balance sm:text-6xl">
                 Version control for organizational knowledge.
               </h1>
               <p className="text-muted-foreground max-w-2xl text-lg leading-8 text-pretty">
-                The production scaffold is ready for the evidence, propagation,
-                approval, and remediation features defined in the product
-                specification.
+                Trace a changed rule through the artifacts and people who may
+                act on it, then prove review, remediation, and release with
+                version-locked evidence.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg">
-                <Link href="/app">
-                  Open workspace
+                <Link href="/app/walkthrough">
+                  Open public walkthrough
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <Link href="/api/v1/health">Check API health</Link>
+                <Link href="/app">Open workspace</Link>
               </Button>
             </div>
           </div>
           <Card>
             <CardHeader>
-              <CardTitle>Foundation status</CardTitle>
+              <CardTitle>What the walkthrough proves</CardTitle>
               <CardDescription>
-                Infrastructure only; business features intentionally remain
-                unbuilt.
+                Fictional hospital data, explicit seeded personas, and no
+                clinical or employment conclusions.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">

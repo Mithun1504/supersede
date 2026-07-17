@@ -21,10 +21,11 @@ const serverEnvSchema = z.object({
     .default("info"),
   NEXT_PUBLIC_APP_URL: optionalUrl.default("http://localhost:3000"),
   DATABASE_URL: optionalUrl,
+  DATABASE_RUNTIME_URL: optionalUrl,
   WORKOS_API_KEY: optionalSecret,
   WORKOS_CLIENT_ID: optionalSecret,
   WORKOS_COOKIE_PASSWORD: optionalSecret,
-  WORKOS_REDIRECT_URI: optionalUrl,
+  NEXT_PUBLIC_WORKOS_REDIRECT_URI: optionalUrl,
   R2_ACCOUNT_ID: optionalSecret,
   R2_ACCESS_KEY_ID: optionalSecret,
   R2_SECRET_ACCESS_KEY: optionalSecret,
@@ -60,13 +61,16 @@ export function getServerEnv(): ServerEnv {
 
 export function isWorkOSConfigured(env = getServerEnv()): boolean {
   return Boolean(
-    env.WORKOS_API_KEY && env.WORKOS_CLIENT_ID && env.WORKOS_COOKIE_PASSWORD,
+    env.WORKOS_API_KEY &&
+    env.WORKOS_CLIENT_ID &&
+    env.WORKOS_COOKIE_PASSWORD &&
+    env.WORKOS_COOKIE_PASSWORD.length >= 32,
   );
 }
 
 export function getConfigurationStatus(env = getServerEnv()) {
   return {
-    database: Boolean(env.DATABASE_URL),
+    database: Boolean(env.DATABASE_RUNTIME_URL || env.DATABASE_URL),
     workos: isWorkOSConfigured(env),
     openai: Boolean(env.OPENAI_API_KEY),
     embeddings: Boolean(env.GEMINI_API_KEY),

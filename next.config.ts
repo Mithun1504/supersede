@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
   poweredByHeader: false,
   reactStrictMode: true,
+  serverExternalPackages: ["@napi-rs/canvas"],
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts", "@xyflow/react"],
   },

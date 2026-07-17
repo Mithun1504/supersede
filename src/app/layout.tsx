@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { connection } from "next/server";
 
 import { AppProviders } from "@/components/providers/app-providers";
 import { geistMono, geistSans } from "@/lib/fonts";
@@ -22,9 +23,13 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // A per-request CSP nonce can only be attached to dynamically rendered
+  // framework scripts. Static shells would ship scripts without the nonce.
+  await connection();
+
   return (
     <html
       lang="en"

@@ -1,9 +1,19 @@
 import { serve } from "inngest/next";
 
 import { inngest } from "@/inngest/client";
-import { dueWorkDispatch } from "@/inngest/functions";
+import {
+  caseApproved,
+  changePropagation,
+  dueWorkDispatch,
+  outboxPublisher,
+} from "@/inngest/functions";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [dueWorkDispatch],
+  functions: [
+    caseApproved,
+    changePropagation,
+    dueWorkDispatch,
+    outboxPublisher,
+  ],
 });
