@@ -28,7 +28,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       attribute="class"
       defaultTheme="system"
       enableSystem
-      disableTransitionOnChange
+      enableColorScheme
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>{children}</TooltipProvider>

@@ -7,6 +7,7 @@ import { Pool } from "pg";
 import * as schema from "@/db/schema";
 import {
   approvalRecords,
+  apiRateLimitBuckets,
   artifactVersions,
   artifacts,
   auditEvents,
@@ -23,6 +24,7 @@ import {
   membershipRoles,
   memberships,
   organizationDomainPolicies,
+  outboxEvents,
   organizations,
   people,
   professionalRoles,
@@ -38,6 +40,7 @@ import {
   sourceSupportEdges,
   sourceVersions,
   sources,
+  workflowRuns,
 } from "@/db/schema";
 
 const roleSeed = [
@@ -106,6 +109,7 @@ async function seed() {
       workosOrganizationId: "org_demo_supersede",
       configuration: "displace",
       individualResultsVisible: true,
+      publicWalkthroughEnabled: true,
     })
     .onConflictDoUpdate({
       target: organizations.workosOrganizationId,
@@ -113,11 +117,30 @@ async function seed() {
         name: "St. Marlowe Medical Center",
         configuration: "displace",
         individualResultsVisible: true,
+        publicWalkthroughEnabled: true,
       },
     })
     .returning();
 
   if (!organization) throw new Error("Failed to seed organization.");
+
+  const existingSource = await database
+    .select({ id: sources.id })
+    .from(sources)
+    .where(
+      and(
+        eq(sources.organizationId, organization.id),
+        eq(sources.canonicalKey, "stm-anticoag-threshold"),
+      ),
+    )
+    .limit(1);
+  if (existingSource[0]) {
+    console.info(
+      "St. Marlowe domain seed is already present; no changes required.",
+    );
+    await pool.end();
+    return;
+  }
 
   await database
     .insert(organizationDomainPolicies)
@@ -255,13 +278,8 @@ async function seed() {
     .onConflictDoNothing()
     .returning();
 
-  if (!oldSourceVersion || !newSourceVersion) {
-    console.info(
-      "Seed already has source versions; skipping dependent fixture rows.",
-    );
-    await pool.end();
-    return;
-  }
+  if (!oldSourceVersion || !newSourceVersion)
+    throw new Error("Failed to seed source versions.");
 
   const ownerId = actorIds.get("change-owner");
   const [protocol, cme, transferProtocol, dosingProtocol, claimSheet] =
@@ -474,13 +492,43 @@ async function seed() {
     .returning();
   const edgeVersionRow = must(edgeVersion, "dependency edge version");
 
-  await database.insert(roleArtifactExposures).values({
-    organizationId: organization.id,
-    professionalRoleId: professionalRoleIds.get("icu_nurse")!,
-    artifactVersionId: protocolVersionRow.id,
-    rationale: "Seeded ICU personas act on P-114 during the demo.",
-    confidence: "0.950",
-  });
+  await database.insert(roleArtifactExposures).values([
+    {
+      organizationId: organization.id,
+      professionalRoleId: professionalRoleIds.get("icu_nurse")!,
+      artifactVersionId: protocolVersionRow.id,
+      rationale: "ICU nurses execute P-114 at the bedside.",
+      confidence: "0.950",
+    },
+    {
+      organizationId: organization.id,
+      professionalRoleId: professionalRoleIds.get("hospitalist")!,
+      artifactVersionId: protocolVersionRow.id,
+      rationale: "Hospitalists authorize threshold-based treatment.",
+      confidence: "0.890",
+    },
+    {
+      organizationId: organization.id,
+      professionalRoleId: professionalRoleIds.get("icu_nurse")!,
+      artifactVersionId: cmeVersionRow.id,
+      rationale: "ICU nurses are assigned the linked course.",
+      confidence: "0.780",
+    },
+    {
+      organizationId: organization.id,
+      professionalRoleId: professionalRoleIds.get("hospitalist")!,
+      artifactVersionId: transferProtocolVersionRow.id,
+      rationale: "Hospitalists use the ICU transfer checklist.",
+      confidence: "0.840",
+    },
+    {
+      organizationId: organization.id,
+      professionalRoleId: professionalRoleIds.get("icu_nurse")!,
+      artifactVersionId: dosingProtocolVersionRow.id,
+      rationale: "ICU nurses implement medication holds.",
+      confidence: "0.810",
+    },
+  ]);
 
   const [change] = await database
     .insert(changeEvents)
@@ -536,6 +584,43 @@ async function seed() {
       confidence: "0.720",
       rationale:
         "The CME module mentions the old rule without owning the protocol.",
+      rewriteRequired: "candidate",
+    },
+    {
+      organizationId: organization.id,
+      changeEventVersionId: changeVersionRow.id,
+      impactedObjectType: "artifact_version",
+      impactedObjectId: transferProtocolVersionRow.id,
+      impactKind: "peripheral",
+      pathEdgeIds: [edgeRow.id],
+      pathDepth: 2,
+      confidence: "0.810",
+      rationale: "The transfer checklist delegates eligibility to P-114.",
+      rewriteRequired: "no",
+    },
+    {
+      organizationId: organization.id,
+      changeEventVersionId: changeVersionRow.id,
+      impactedObjectType: "artifact_version",
+      impactedObjectId: dosingProtocolVersionRow.id,
+      impactKind: "load_bearing",
+      pathEdgeIds: [edgeRow.id],
+      pathDepth: 2,
+      confidence: "0.790",
+      rationale: "The dose-hold instruction depends on the active threshold.",
+      rewriteRequired: "yes",
+    },
+    {
+      organizationId: organization.id,
+      changeEventVersionId: changeVersionRow.id,
+      impactedObjectType: "artifact_version",
+      impactedObjectId: claimSheetVersionRow.id,
+      impactKind: "peripheral",
+      pathEdgeIds: [edgeRow.id],
+      pathDepth: 2,
+      confidence: "0.540",
+      rationale:
+        "The claims sheet may imply the retired threshold and needs review.",
       rewriteRequired: "candidate",
     },
   ]);
@@ -663,6 +748,68 @@ async function seed() {
     status: "blocked_case_required",
   });
 
+  for (const person of seededPeople.filter((item) => item.id !== rnAdams.id)) {
+    const [additionalAssignment] = await database
+      .insert(probeAssignments)
+      .values({
+        organizationId: organization.id,
+        personId: person.id,
+        caseVersionId: caseVersionRow.id,
+        changeEventVersionId: changeVersionRow.id,
+        assignedByMembershipId: actorIds.get("release"),
+        dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      })
+      .returning();
+    const assignment = must(
+      additionalAssignment,
+      `probe for ${person.displayName}`,
+    );
+    await database.insert(probeDeliveryEvents).values({
+      organizationId: organization.id,
+      assignmentId: assignment.id,
+      status: "completed",
+      evidence: { channel: "seed", deliveredTo: person.externalKey },
+    });
+    const answeredWith =
+      person.responsePattern === "old_rule"
+        ? "old"
+        : person.responsePattern === "new_rule"
+          ? "new"
+          : "other";
+    const responseText =
+      answeredWith === "old"
+        ? "Start anticoagulation."
+        : answeredWith === "new"
+          ? "Hold anticoagulation until the active threshold is met."
+          : "Request specialist review before acting.";
+    const [additionalResponse] = await database
+      .insert(probeResponses)
+      .values({
+        organizationId: organization.id,
+        assignmentId: assignment.id,
+        answeredWith,
+        responseText,
+        gradingConfidence: answeredWith === "other" ? "0.620" : "0.930",
+        gradingRationale: `Response classified against the locked ${changeVersionRow.versionLabel} case.`,
+        gradingEvidenceQuote: responseText,
+        reviewRequired: answeredWith === "other",
+      })
+      .returning();
+    if (answeredWith === "old") {
+      const response = must(
+        additionalResponse,
+        `response for ${person.displayName}`,
+      );
+      await database.insert(remediationAssignments).values({
+        organizationId: organization.id,
+        personId: person.id,
+        probeResponseId: response.id,
+        artifactVersionId: protocolVersionRow.id,
+        status: "assigned",
+      });
+    }
+  }
+
   await database.insert(approvalRecords).values([
     {
       organizationId: organization.id,
@@ -731,6 +878,39 @@ async function seed() {
       ],
     },
     cutoffAt: new Date(),
+  });
+
+  await database.insert(workflowRuns).values({
+    organizationId: organization.id,
+    externalRunId: "seed-propagation-run",
+    workflowName: "change-propagation",
+    subjectType: "change_event_version",
+    subjectId: changeVersionRow.id,
+    status: "completed",
+    progressCurrent: 5,
+    progressTotal: 5,
+    startedAt: new Date(),
+    completedAt: new Date(),
+  });
+
+  await database.insert(outboxEvents).values({
+    organizationId: organization.id,
+    eventName: "change.propagation.completed",
+    aggregateType: "change_event",
+    aggregateId: changeRow.id,
+    idempotencyKey: `seed:${changeVersionRow.id}:propagation-completed`,
+    payload: { changeEventVersionId: changeVersionRow.id, impactCount: 5 },
+    status: "published",
+    attempts: 1,
+    publishedAt: new Date(),
+  });
+
+  await database.insert(apiRateLimitBuckets).values({
+    organizationId: organization.id,
+    actorMembershipId: actorIds.get("auditor")!,
+    scope: "audit-export",
+    windowStartedAt: new Date(),
+    requestCount: 1,
   });
 
   await pool.end();

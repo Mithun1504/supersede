@@ -18,6 +18,11 @@ export async function GET(request: Request) {
     );
   }
 
-  const signInUrl = await getSignInUrl();
+  const requestedReturnTo = new URL(request.url).searchParams.get("returnTo");
+  const returnTo =
+    requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//")
+      ? requestedReturnTo
+      : undefined;
+  const signInUrl = await getSignInUrl(returnTo ? { returnTo } : {});
   redirect(signInUrl);
 }

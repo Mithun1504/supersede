@@ -7,7 +7,7 @@ export default function Loading() {
       active="overview"
       eyebrow="Loading"
       title="Loading product workspace"
-      description="Preparing the seeded workflow state."
+      description="Loading the current workflow state from the database."
     >
       <LoadingRows />
     </AuthenticatedProductShell>

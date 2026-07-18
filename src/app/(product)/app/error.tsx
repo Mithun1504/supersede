@@ -22,7 +22,13 @@ export default function ProductError({
       active="overview"
       eyebrow="Product workspace"
       title="The product workspace could not load"
-      description="The seeded view failed before it could render. Retry the route; if it repeats, check the server log with the error digest."
+      description="The workspace failed before it could render. Retry the route; if it repeats, check the server log with the error digest."
+      workspace={{
+        organizationName: "Unavailable workspace",
+        configuration: "displace",
+        changeReference: "Unavailable",
+        reviewCount: 0,
+      }}
       action={<Button onClick={reset}>Try again</Button>}
     >
       <ErrorNotice

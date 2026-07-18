@@ -22,6 +22,7 @@ vi.mock("next/link", () => ({
     );
   },
 }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 describe("ProductShell", () => {
   it("renders accessible product navigation and skip link", async () => {
@@ -31,6 +32,12 @@ describe("ProductShell", () => {
         eyebrow="Blast radius"
         title="Blast radius"
         description="Potential exposure across seeded paths."
+        workspace={{
+          organizationName: "Test Health",
+          configuration: "displace",
+          changeReference: "CE-TEST",
+          reviewCount: 0,
+        }}
       >
         <p>Seeded blast-radius content</p>
       </ProductShell>,
@@ -43,6 +50,9 @@ describe("ProductShell", () => {
       screen.getAllByRole("link", { name: /Blast radius/i })[0],
     ).toHaveAttribute("aria-current", "page");
     expect(screen.getByText("Seeded blast-radius content")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Change color theme" }),
+    ).toBeInTheDocument();
     expect((await axe.run(container)).violations).toHaveLength(0);
   });
 });

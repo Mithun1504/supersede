@@ -24,7 +24,7 @@ export default defineConfig({
     ? {}
     : {
         webServer: {
-          command: `pnpm dev --port ${String(port)}`,
+          command: `pnpm exec next dev --port ${String(port)}`,
           url: `${baseURL}/api/v1/health`,
           reuseExistingServer: !process.env.CI,
           timeout: 120_000,

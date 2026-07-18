@@ -93,7 +93,7 @@ test("anonymous mutation endpoints return problem details", async ({
   }
 });
 
-test("live extraction is visible but rejects an anonymous mutation cleanly", async ({
+test("live extraction requires sign-in before an anonymous mutation", async ({
   page,
 }) => {
   await page.goto("/app/review");
@@ -101,12 +101,13 @@ test("live extraction is visible but rejects an anonymous mutation cleanly", asy
   await expect(
     page.getByRole("heading", { name: "Extract claims from a real source" }),
   ).toBeVisible();
-  await expect(page.getByLabel("Protocol text")).not.toBeEmpty();
-  await page.getByRole("button", { name: "Run live extraction" }).click();
-
-  await expect(page.locator('p[role="alert"]')).toHaveText(
-    "Authentication is required.",
-  );
+  await expect(page.getByLabel("Protocol text")).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Run live extraction" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("link", { name: "Sign in to run extraction" }),
+  ).toHaveAttribute("href", "/sign-in?returnTo=/app/review");
   await expect(page.getByText(/Live claims, verified quotes/)).toBeVisible();
 });
 
@@ -163,12 +164,10 @@ test("five-minute seeded path preserves evidence from review through audit", asy
     .click();
 
   await expect(page).toHaveURL(/\/app\/review$/);
-  await expect(
-    page.getByText("Exact evidence shown to reviewers."),
-  ).toBeVisible();
-  await expect(page.getByText("Conflicts with new rule")).toBeVisible();
+  await expect(page.getByText("Extracted source citations.")).toBeVisible();
+  await expect(page.getByText("Governed workflow")).toBeVisible();
 
-  await visibleProductLink(page, "Change events").click();
+  await clickProductLink(page, "Change events");
   await expect(page).toHaveURL(/\/app\/changes$/);
   await expect(page.getByText("Old rule (from)")).toBeVisible();
   await expect(page.getByText("New rule (to)")).toBeVisible();
@@ -179,28 +178,24 @@ test("five-minute seeded path preserves evidence from review through audit", asy
   await expect(page.getByText("Rewrite required").first()).toBeVisible();
   await expect(page.getByText("Selected path")).toBeVisible();
 
-  await page.getByRole("link", { name: "Approve divergence cases" }).click();
+  await page.getByRole("link", { name: "View divergence cases" }).click();
   await expect(page).toHaveURL(/\/app\/cases$/);
-  await expect(page.getByText("Approved · version-locked")).toBeVisible();
-  await expect(page.getByText("Approval invariant")).toBeVisible();
+  await expect(page.getByText("approved", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Approval invariant/)).toBeVisible();
 
-  await page.getByRole("link", { name: "Open probe runner" }).click();
+  await page.getByRole("link", { name: "Open probes" }).click();
   await expect(page).toHaveURL(/\/app\/probes$/);
-  await page.getByRole("button", { name: "Run R.N. Adams response" }).click();
-  await expect(page.getByRole("status")).toHaveText(
-    "Assessed old-rule response",
-  );
-  await page.getByRole("button", { name: "Apply cited correction" }).click();
-  await page.getByRole("button", { name: "Check correction" }).click();
-  await expect(page.getByText(/Correction passed/)).toBeVisible();
-  await expect(page.getByText("Remediation · R.N. Adams")).toBeVisible();
+  await expect(page.getByText("Governed probe assignments")).toBeVisible();
+  await expect(page.getByText(/Answered old/).first()).toBeVisible();
   await expect(page.getByText("different approved case")).toBeVisible();
 
   await page.getByRole("link", { name: "View audit" }).click();
   await expect(page).toHaveURL(/\/app\/audit$/);
   await expect(page.getByText("Append-only log")).toBeVisible();
   await expect(page.getByText(/SHA-256/)).toBeVisible();
-  await expect(page.getByText("Release authorized")).toBeVisible();
+  await expect(
+    page.getByText("Governed approvals", { exact: true }),
+  ).toBeVisible();
 });
 
 async function expectNoPageOverflow(page: Page) {
@@ -241,10 +236,16 @@ async function expectUnauthenticatedProblem(response: APIResponse) {
   });
 }
 
-function visibleProductLink(page: Page, name: string) {
-  return page
+async function clickProductLink(page: Page, name: string) {
+  const visibleLink = page
     .getByRole("link", { name, exact: true })
     .filter({ visible: true });
+
+  if ((await visibleLink.count()) === 0) {
+    await page.getByRole("button", { name: "More sections" }).click();
+  }
+
+  await visibleLink.click();
 }
 
 function formatViolations(

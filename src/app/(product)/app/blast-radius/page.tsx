@@ -1,123 +1,147 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRight, Quote } from "lucide-react";
-
 import {
-  affectedArtifacts,
-  changeEvent,
-  metrics,
-} from "@/components/product/demo-data";
+  ArrowRight,
+  ClipboardList,
+  Quote,
+  ShieldAlert,
+  Target,
+  Users,
+} from "lucide-react";
+
 import { SectionTitle, Surface } from "@/components/product/product-shell";
 import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
+import { MetricRail } from "@/components/product/product-ui";
 import { ConfidenceBar, StatusPill } from "@/components/product/status";
 import { Button } from "@/components/ui/button";
+import { getProductWorkspace } from "@/modules/product";
 
-export const metadata: Metadata = {
-  title: "Blast Radius",
-};
+export const metadata: Metadata = { title: "Blast Radius" };
 
-export default function BlastRadiusPage() {
+export default async function BlastRadiusPage() {
+  const data = await getProductWorkspace();
+  const artifacts = data.impacts.filter((impact) => impact.artifactId);
+  const people = data.exposures.reduce(
+    (sum, exposure) => sum + exposure.peopleCount,
+    0,
+  );
+  const metrics = [
+    [
+      "Affected artifacts",
+      artifacts.length,
+      `${artifacts.filter((x) => x.rewriteRequired === "yes").length} require rewrite`,
+    ],
+    ["Linked roles", data.exposures.length, "Role-to-artifact exposure links"],
+    ["Potential people", people, "Distinct memberships may overlap"],
+    [
+      "Divergence cases",
+      data.cases.length,
+      `${data.cases.filter((x) => x.status === "approved").length} approved`,
+    ],
+  ] as const;
+  const selected = artifacts[0];
   return (
     <AuthenticatedProductShell
       active="blast-radius"
       eyebrow="Blast radius"
       title="Blast radius"
-      description="Potential exposure across protocols, roles, and groups based on validated change propagation paths."
+      description="Potential exposure across artifacts, roles, and people based on validated propagation paths."
       action={
         <Button asChild>
-          <Link
-            href="/app/cases"
-            data-product-action="approve-divergence-cases"
-          >
-            Approve divergence cases
-            <ArrowRight className="size-4" aria-hidden="true" />
+          <Link href="/app/cases">
+            View divergence cases
+            <ArrowRight className="size-4" />
           </Link>
         </Button>
       }
     >
-      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {metrics.map((metric) => (
-          <Surface className="p-4" key={metric.label}>
-            <p className="text-muted-foreground text-xs tracking-[0.12em] uppercase">
-              {metric.label}
-            </p>
-            <p className="mt-2 text-3xl font-semibold">{metric.value}</p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              {metric.detail}
-            </p>
-          </Surface>
-        ))}
-      </section>
-
+      <MetricRail
+        items={metrics.map(([label, value, detail], index) => ({
+          label,
+          value,
+          detail,
+          icon: [Target, Users, ShieldAlert, ClipboardList][index],
+          tone: (["primary", "cyan", "warning", "success"] as const)[index],
+        }))}
+      />
       <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
-        <Surface>
+        <Surface className="min-w-0 overflow-hidden">
           <SectionTitle
             title="Propagation paths"
-            detail="Rows stay visible even when confidence is low or links are uncertain."
+            detail="Every row is read from the current ChangeEvent impact records."
           />
-          <div className="divide-border divide-y">
-            {affectedArtifacts.map((artifact) => (
-              <article
-                className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[1fr_240px_160px]"
-                key={artifact.name}
-              >
-                <div className="min-w-0">
-                  <p className="text-muted-foreground font-mono text-xs">
-                    Claim C-77421
-                  </p>
-                  <h2 className="mt-1 text-base font-semibold">
-                    {artifact.name}
-                  </h2>
-                  <p className="text-muted-foreground mt-1 text-sm">
-                    {artifact.owner} · {artifact.version}
-                  </p>
-                </div>
-                <div>
-                  <StatusPill
-                    tone={
-                      artifact.impact === "Rewrite required"
-                        ? "danger"
-                        : artifact.impact === "Peripheral edits"
-                          ? "warning"
-                          : "neutral"
-                    }
-                  >
-                    {artifact.impact}
-                  </StatusPill>
-                  <p className="text-muted-foreground mt-2 text-sm">
-                    {artifact.exposure} personas
-                  </p>
-                </div>
-                <ConfidenceBar value={artifact.confidence} />
-              </article>
-            ))}
+          <div className="flex flex-col gap-3 p-4 sm:p-6">
+            {artifacts.map((impact) => {
+              const exposure = data.exposures.find(
+                (item) => item.artifactVersionId === impact.objectId,
+              );
+              return (
+                <article
+                  className="border-border/70 bg-card/45 hover:bg-card hover:border-primary/25 grid gap-4 rounded-xl border p-4 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(83,50,160,0.05)] sm:p-5 lg:grid-cols-[minmax(0,1fr)_220px_160px]"
+                  key={impact.id}
+                >
+                  <div>
+                    <p className="text-muted-foreground font-mono text-[10px] font-semibold uppercase">
+                      {impact.artifactKind}
+                    </p>
+                    <h3 className="text-foreground mt-1.5 text-sm leading-snug font-semibold sm:text-base">
+                      {impact.artifactTitle}
+                    </h3>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      {impact.artifactOwner ?? "Unassigned"} ·{" "}
+                      {impact.artifactVersionLabel}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <StatusPill
+                      tone={
+                        impact.rewriteRequired === "yes"
+                          ? "danger"
+                          : impact.rewriteRequired === "candidate"
+                            ? "warning"
+                            : "neutral"
+                      }
+                    >
+                      {impact.rewriteRequired === "yes"
+                        ? "Rewrite required"
+                        : impact.rewriteRequired === "candidate"
+                          ? "Review candidate"
+                          : "No rewrite"}
+                    </StatusPill>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      {exposure
+                        ? `${exposure.peopleCount} people · ${exposure.roleName}`
+                        : "No linked role"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <ConfidenceBar
+                      value={Math.round(impact.confidence * 100)}
+                    />
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </Surface>
-        <Surface>
+        <Surface className="h-fit overflow-hidden xl:sticky xl:top-24">
           <SectionTitle
             title="Selected path"
-            detail="Claim to protocol to role."
+            detail="Evidence from the highest-confidence impact."
           />
-          <div className="space-y-5 p-4 sm:p-6">
-            {[
-              "Source claim",
-              "GI Bleed Management Protocol",
-              "Order Set: Upper GI Bleed",
-            ].map((node) => (
-              <div className="border-border rounded-lg border p-3" key={node}>
-                <p className="font-semibold">{node}</p>
-                <p className="text-muted-foreground mt-1 text-sm">
-                  Version-locked evidence path.
-                </p>
-              </div>
-            ))}
-            <div className="border-border rounded-lg border p-4">
-              <Quote className="text-primary size-4" aria-hidden="true" />
+          <div className="space-y-4 p-4 sm:p-6">
+            <h2 className="font-semibold">
+              {selected?.artifactTitle ?? "No active impact"}
+            </h2>
+            <p className="text-muted-foreground text-sm leading-6">
+              {selected?.rationale}
+            </p>
+            <div className="border-border bg-muted/30 rounded-xl border p-4">
+              <Quote className="text-primary size-4" />
               <blockquote className="mt-3 text-sm leading-6">
-                “{changeEvent.citation}”
+                “{data.claims[0]?.evidenceQuote ?? data.change.newRule}”
               </blockquote>
             </div>
-            <StatusPill tone="danger">Highest impact</StatusPill>
           </div>
         </Surface>
       </section>

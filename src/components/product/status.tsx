@@ -3,14 +3,6 @@ import { CheckCircle2, CircleAlert, Inbox, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-const confidenceWidth = {
-  31: "w-[31%]",
-  54: "w-[54%]",
-  55: "w-[55%]",
-  68: "w-[68%]",
-  72: "w-[72%]",
-} as const;
-
 export function StatusPill({
   children,
   tone = "neutral",
@@ -21,38 +13,47 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        "inline-flex w-fit items-center rounded-md border px-2 py-1 text-xs font-semibold tracking-[0.08em] uppercase",
+        "inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.6875rem] font-semibold tracking-[0.05em] uppercase",
         tone === "success" &&
-          "border-success/20 bg-success/10 text-[oklch(0.42_0.12_155)]",
+          "border-success/20 bg-success/8 dark:text-success text-[oklch(0.42_0.1_160)]",
         tone === "warning" &&
-          "border-warning/30 bg-warning/15 text-warning-foreground",
+          "border-warning/25 bg-warning/10 text-warning-foreground dark:text-warning",
         tone === "danger" &&
-          "border-destructive/20 bg-destructive/10 text-destructive",
-        tone === "plum" && "border-primary/20 bg-primary/10 text-primary",
+          "border-destructive/20 bg-destructive/8 dark:text-destructive text-[oklch(0.42_0.16_25)]",
+        tone === "plum" && "border-primary/20 bg-primary/8 text-primary",
         tone === "neutral" && "border-border bg-muted text-muted-foreground",
       )}
     >
+      <span
+        className={cn(
+          "size-1.5 rounded-full bg-current",
+          tone === "neutral" && "opacity-55",
+        )}
+        aria-hidden="true"
+      />
       {children}
     </span>
   );
 }
 
 export function ConfidenceBar({ value }: { value: number }) {
+  const boundedValue = Math.max(0, Math.min(100, value));
   return (
-    <div className="flex min-w-32 items-center gap-3">
+    <div
+      className="flex min-w-32 items-center gap-3"
+      aria-label={`Confidence ${boundedValue}%`}
+    >
       <div
         className="bg-muted h-2 flex-1 overflow-hidden rounded-full"
         aria-hidden="true"
       >
         <div
-          className={cn(
-            "bg-primary h-full rounded-full",
-            confidenceWidth[value as keyof typeof confidenceWidth] ?? "w-1/2",
-          )}
+          className="bg-primary h-full rounded-full transition-[width] duration-500 ease-out"
+          style={{ width: `${boundedValue}%` }}
         />
       </div>
       <span className="text-muted-foreground w-10 text-xs tabular-nums">
-        {value}%
+        {boundedValue}%
       </span>
     </div>
   );

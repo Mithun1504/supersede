@@ -5,25 +5,37 @@ import {
   type ProductViewer,
 } from "@/components/product/product-shell";
 import { signOutAction } from "@/modules/identity/actions";
-import { getOptionalAuthContext } from "@/modules/identity/auth";
+import { getProductWorkspace } from "@/modules/product";
 
-type ProductShellProps = React.ComponentProps<typeof ProductShell>;
+type ProductShellProps = Omit<
+  React.ComponentProps<typeof ProductShell>,
+  "viewer" | "viewerAction" | "workspace"
+>;
 
 export async function AuthenticatedProductShell(props: ProductShellProps) {
-  const auth = await getOptionalAuthContext();
-  const viewer: ProductViewer | null = auth
-    ? {
-        displayName: auth.displayName,
-        organizationReady: Boolean(auth.workosOrganizationId),
-      }
-    : null;
+  const data = await getProductWorkspace();
+  const viewer: ProductViewer = {
+    displayName: data.viewer.displayName,
+    organizationReady: data.viewer.organizationReady,
+    authenticated: data.viewer.authenticated,
+  };
 
   return (
     <ProductShell
       {...props}
       viewer={viewer}
+      workspace={{
+        organizationName: data.organization.name,
+        configuration: data.organization.configuration,
+        changeReference: data.change.reference,
+        reviewCount: data.claims.filter(
+          (claim) =>
+            claim.reviewStatus === "suggested" ||
+            claim.reviewStatus === "needs_review",
+        ).length,
+      }}
       viewerAction={
-        auth ? (
+        data.viewer.authenticated ? (
           <form action={signOutAction}>
             <button
               type="submit"

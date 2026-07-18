@@ -1,21 +1,24 @@
 "use client";
 
 import { useId, useState } from "react";
-import { LoaderCircle, Quote, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  CheckCircle2,
+  FileSearch,
+  LoaderCircle,
+  LockKeyhole,
+  Quote,
+  Sparkles,
+  Upload,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfidenceBar, StatusPill } from "@/components/product/status";
-
-const sampleProtocol = `Protocol P-114: Anticoagulation before neuraxial procedures
-
-For patients with a coagulation marker of 52 or higher, hold the anticoagulant before the procedure and request specialist review.
-
-When the marker is below 52 and there are no additional bleeding risks, continue the standard timing protocol.
-
-Document the marker, the decision, and the approving clinician in the procedure record.`;
+import { WorkflowRail } from "@/components/product/product-ui";
 
 type ExtractionResult = {
   live: boolean;
@@ -31,15 +34,25 @@ type ExtractionResult = {
   provenance?: { model: string; latencyMs: number; validated: boolean };
 };
 
-export function LiveExtractionPanel() {
+export function LiveExtractionPanel({
+  authenticated,
+  organizationReady,
+  openAiConfigured,
+}: {
+  authenticated: boolean;
+  organizationReady: boolean;
+  openAiConfigured: boolean;
+}) {
+  const router = useRouter();
   const textId = useId();
   const fileId = useId();
-  const [text, setText] = useState(sampleProtocol);
+  const [text, setText] = useState("");
   const [result, setResult] = useState<ExtractionResult>();
   const [status, setStatus] = useState<"idle" | "uploading" | "extracting">(
     "idle",
   );
   const [error, setError] = useState<string>();
+  const [authExpired, setAuthExpired] = useState(false);
 
   async function extract(inputText: string, sourceHash?: string) {
     setStatus("extracting");
@@ -63,9 +76,11 @@ export function LiveExtractionPanel() {
         detail?: string;
         title?: string;
       };
+      if (response.status === 401) setAuthExpired(true);
       if (!response.ok)
         throw new Error(body.detail ?? body.title ?? "Extraction failed.");
       setResult(body);
+      router.refresh();
     } catch (caught) {
       setResult(undefined);
       setError(messageFrom(caught));
@@ -110,9 +125,11 @@ export function LiveExtractionPanel() {
   }
 
   const busy = status !== "idle";
+  const canExtract =
+    authenticated && organizationReady && openAiConfigured && !authExpired;
   return (
-    <section className="border-border bg-card rounded-lg border">
-      <div className="border-border grid gap-5 border-b p-4 sm:p-6 lg:grid-cols-[1fr_280px]">
+    <section className="app-surface overflow-hidden">
+      <div className="border-border/70 grid gap-5 border-b p-4 sm:p-6 lg:grid-cols-[1fr_300px]">
         <div className="space-y-2">
           <p className="text-primary text-xs font-semibold tracking-[0.14em] uppercase">
             Live completion gate
@@ -130,7 +147,7 @@ export function LiveExtractionPanel() {
           <Input
             id={fileId}
             type="file"
-            disabled={busy}
+            disabled={busy || !canExtract}
             accept=".txt,.md,.markdown,.html,.htm,.docx,.xlsx,.pdf"
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
@@ -142,18 +159,81 @@ export function LiveExtractionPanel() {
           </p>
         </div>
       </div>
+      <div className="border-border/70 bg-muted/15 border-b px-4 py-4 sm:px-6">
+        <WorkflowRail
+          steps={[
+            {
+              title: "Upload",
+              detail: text ? "Source ready" : "Paste or choose a file",
+              state: text
+                ? "complete"
+                : status === "uploading"
+                  ? "current"
+                  : "pending",
+              icon: Upload,
+            },
+            {
+              title: "Parse",
+              detail:
+                status === "uploading"
+                  ? "Reading source"
+                  : text
+                    ? "Content available"
+                    : "Waiting for source",
+              state:
+                status === "uploading"
+                  ? "current"
+                  : text
+                    ? "complete"
+                    : "pending",
+              icon: FileSearch,
+            },
+            {
+              title: "Extract",
+              detail:
+                status === "extracting"
+                  ? "Generating claims"
+                  : result
+                    ? `${result.claims.length} claims returned`
+                    : "Schema-constrained",
+              state:
+                status === "extracting"
+                  ? "current"
+                  : result
+                    ? "complete"
+                    : "pending",
+              icon: Sparkles,
+            },
+            {
+              title: "Review",
+              detail: result
+                ? "Ready for human review"
+                : "Human approval required",
+              state: result ? "current" : "pending",
+              icon: CheckCircle2,
+            },
+          ]}
+        />
+      </div>
       <div className="grid gap-6 p-4 sm:p-6 lg:grid-cols-2">
         <div className="space-y-3">
+          {!canExtract ? (
+            <ExtractionAccessNotice
+              authenticated={authenticated && !authExpired}
+              organizationReady={organizationReady}
+              openAiConfigured={openAiConfigured}
+            />
+          ) : null}
           <Label htmlFor={textId}>Protocol text</Label>
           <Textarea
             id={textId}
             value={text}
-            disabled={busy}
+            disabled={busy || !canExtract}
             onChange={(event) => setText(event.target.value)}
-            className="min-h-64 font-mono text-xs leading-6"
+            className="bg-muted/20 min-h-72 resize-y font-mono text-xs leading-6"
           />
           <Button
-            disabled={busy || !text.trim()}
+            disabled={busy || !canExtract || !text.trim()}
             onClick={() => void extract(text)}
           >
             {busy ? (
@@ -182,6 +262,51 @@ export function LiveExtractionPanel() {
   );
 }
 
+function ExtractionAccessNotice({
+  authenticated,
+  organizationReady,
+  openAiConfigured,
+}: {
+  authenticated: boolean;
+  organizationReady: boolean;
+  openAiConfigured: boolean;
+}) {
+  let message = "Sign in with WorkOS to extract and persist governed claims.";
+  if (authenticated && !organizationReady) {
+    message = "Your WorkOS session is not connected to an organization tenant.";
+  } else if (authenticated && organizationReady && !openAiConfigured) {
+    message =
+      "Live extraction requires OPENAI_API_KEY in the server environment.";
+  }
+
+  return (
+    <div
+      className="border-primary/30 bg-primary/5 rounded-xl border p-4"
+      role="status"
+    >
+      <div className="flex items-start gap-3">
+        <LockKeyhole
+          className="text-primary mt-0.5 size-4 shrink-0"
+          aria-hidden="true"
+        />
+        <div>
+          <p className="text-sm font-semibold">Governed action</p>
+          <p className="text-muted-foreground mt-1 text-sm leading-6">
+            {message}
+          </p>
+          {!authenticated ? (
+            <Button asChild className="mt-3">
+              <Link href="/sign-in?returnTo=/app/review">
+                Sign in to run extraction
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExtractionResults({
   result,
 }: {
@@ -189,7 +314,7 @@ function ExtractionResults({
 }) {
   if (!result) {
     return (
-      <div className="border-border bg-muted/30 grid min-h-64 place-items-center rounded-lg border border-dashed p-8 text-center">
+      <div className="border-border bg-muted/20 dot-grid grid min-h-72 place-items-center rounded-xl border border-dashed p-8 text-center">
         <p className="text-muted-foreground max-w-xs text-sm leading-6">
           Live claims, verified quotes, and review priority will appear here.
         </p>
@@ -213,7 +338,7 @@ function ExtractionResults({
       </p>
       {result.claims.map((claim, index) => (
         <article
-          className="border-border rounded-lg border p-4"
+          className="border-border app-surface-interactive rounded-xl border p-4"
           key={`${claim.text}-${index}`}
         >
           <div className="flex items-start justify-between gap-3">

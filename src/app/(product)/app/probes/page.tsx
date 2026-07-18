@@ -3,14 +3,16 @@ import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
 
 import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
-import { SeededProbeRunner } from "@/components/product/seeded-probe-runner";
+import { ProbeDashboard } from "@/components/product/probe-dashboard";
 import { Button } from "@/components/ui/button";
+import { getProductWorkspace } from "@/modules/product";
 
 export const metadata: Metadata = {
   title: "Instinct Probes",
 };
 
-export default function ProbesPage() {
+export default async function ProbesPage() {
+  const data = await getProductWorkspace();
   return (
     <AuthenticatedProductShell
       active="probes"
@@ -26,7 +28,7 @@ export default function ProbesPage() {
         </Button>
       }
     >
-      <SeededProbeRunner />
+      <ProbeDashboard probes={data.probes} />
     </AuthenticatedProductShell>
   );
 }

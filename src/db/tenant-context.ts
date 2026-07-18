@@ -42,6 +42,27 @@ export async function resolveActorContext({
   };
 }
 
+export async function resolvePublicWalkthroughContext(): Promise<TenantContext> {
+  const result = await getDatabase().execute<{
+    organization_id: string;
+    membership_id: string;
+  }>(sql`select * from app.resolve_public_walkthrough()`);
+  const actor = result.rows[0];
+
+  if (!actor) {
+    throw new AppError({
+      code: "NOT_FOUND",
+      message: "No public walkthrough workspace is available.",
+      status: 404,
+    });
+  }
+
+  return {
+    organizationId: actor.organization_id,
+    actorMembershipId: actor.membership_id,
+  };
+}
+
 export async function withTenantContext<T>(
   context: TenantContext,
   operation: (transaction: Transaction) => Promise<T>,

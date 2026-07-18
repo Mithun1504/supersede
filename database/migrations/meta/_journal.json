@@ -57,6 +57,13 @@
       "when": 1784126709378,
       "tag": "0007_chief_psynapse",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784318963305,
+      "tag": "0008_graceful_the_executioner",
+      "breakpoints": true
     }
   ]
 }
