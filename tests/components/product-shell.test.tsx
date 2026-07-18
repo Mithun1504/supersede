@@ -22,13 +22,16 @@ vi.mock("next/link", () => ({
     );
   },
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/app/blast-radius",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 describe("ProductShell", () => {
   it("renders accessible product navigation and skip link", async () => {
     const { container } = render(
       <ProductShell
-        active="blast-radius"
+        active="overview"
         eyebrow="Blast radius"
         title="Blast radius"
         description="Potential exposure across seeded paths."

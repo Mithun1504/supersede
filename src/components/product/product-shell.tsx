@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type React from "react";
 import type { FormEvent } from "react";
 import { useState } from "react";
@@ -177,7 +177,14 @@ export function ProductShell({
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const pathname = usePathname();
   const router = useRouter();
+  const resolvedActive =
+    productNav.find((item) =>
+      item.href === "/app"
+        ? pathname === item.href
+        : pathname === item.href || pathname.startsWith(`${item.href}/`),
+    )?.key ?? active;
 
   function toggleCollapsed() {
     setCollapsed((current) => !current);
@@ -221,7 +228,7 @@ export function ProductShell({
         >
           <aside className="signal-sidebar bg-sidebar text-sidebar-foreground border-sidebar-border sticky top-0 hidden h-dvh border-r md:flex md:flex-col">
             <SidebarNav
-              active={active}
+              active={resolvedActive}
               collapsed={collapsed}
               onToggle={toggleCollapsed}
               viewer={viewer}
@@ -234,7 +241,7 @@ export function ProductShell({
             <header className="signal-header border-border/70 bg-background/88 supports-[backdrop-filter]:bg-background/82 sticky top-0 z-40 border-b backdrop-blur-xl">
               <div className="flex min-h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
                 <MobileMenu
-                  active={active}
+                  active={resolvedActive}
                   viewer={viewer}
                   workspace={workspace}
                 />
@@ -366,7 +373,7 @@ export function ProductShell({
           </div>
         </div>
 
-        <MobileBottomNav active={active} />
+        <MobileBottomNav active={resolvedActive} />
       </div>
     </TooltipProvider>
   );
