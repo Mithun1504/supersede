@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { GraphBriefing } from "@/components/product/graph-briefing";
 
 export const metadata: Metadata = {
-  title: "Graph Briefing",
+  title: "Dependency map",
 };
 
 export default function GraphPage() {

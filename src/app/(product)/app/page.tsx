@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ChangeRoom } from "@/components/product/change-room";
 
 export const metadata: Metadata = {
-  title: "Change Room",
+  title: "Control Room",
 };
 
 export default function OverviewPage() {

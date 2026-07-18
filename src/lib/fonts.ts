@@ -1,11 +1,14 @@
-import { Geist, Geist_Mono } from "next/font/google";
+import { Atkinson_Hyperlegible, Literata } from "next/font/google";
 
-export const geistSans = Geist({
+export const bodyFont = Atkinson_Hyperlegible({
   subsets: ["latin"],
-  variable: "--font-geist-sans",
+  weight: ["400", "700"],
+  variable: "--font-body",
+  display: "swap",
 });
 
-export const geistMono = Geist_Mono({
+export const headingFont = Literata({
   subsets: ["latin"],
-  variable: "--font-geist-mono",
+  variable: "--font-heading",
+  display: "swap",
 });

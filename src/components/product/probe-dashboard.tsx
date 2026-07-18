@@ -1,146 +1,268 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState } from "react";
-import { CheckCircle2, Radio, RefreshCw, Search, Send, X } from "lucide-react";
+import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
 
 import { SectionTitle, Surface } from "@/components/product/product-shell";
-import { MetricRail } from "@/components/product/product-ui";
 import { StatusPill } from "@/components/product/status";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { ProductWorkspace } from "@/modules/product";
 
 type Probe = ProductWorkspace["probes"][number];
-type Filter = "all" | "old" | "new" | "other" | "remediation";
+type QueueFilter = "all" | "attention" | "remediation" | "recheck" | "closed";
+type ProbeSummary = {
+  assigned: number;
+  delivered: number;
+  responded: number;
+  assessed: number;
+  remediationAssigned: number;
+  remediated: number;
+  recheckScheduled: number;
+  rechecked: number;
+};
+
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeZone: "UTC",
+});
+
+function formatDate(value: string | null) {
+  return value ? dateFormatter.format(new Date(value)) : "Not set";
+}
+
+function formatToken(value: string | null) {
+  return value ? value.replaceAll("_", " ") : "Not recorded";
+}
+
+function ratio(value: number, total: number) {
+  return total ? `${value}/${total}` : "0";
+}
+
+function queueState(probe: Probe) {
+  if (probe.recheckScheduled > 0) {
+    return { label: "Recheck open", tone: "plum" as const };
+  }
+  if (probe.recheckCompleted > 0) {
+    return { label: "Recheck complete", tone: "success" as const };
+  }
+  if (probe.remediationAssignmentId) {
+    if (probe.remediationStatus === "passed") {
+      return { label: "Remediation passed", tone: "success" as const };
+    }
+    if (probe.remediationStatus === "failed") {
+      return { label: "Follow-up required", tone: "danger" as const };
+    }
+    return {
+      label: `Remediation ${formatToken(probe.remediationStatus)}`,
+      tone: "warning" as const,
+    };
+  }
+  if (probe.responseId) {
+    if (probe.reviewRequired) {
+      return { label: "Assessment review", tone: "warning" as const };
+    }
+    return probe.gradingConfidence === null
+      ? { label: "Awaiting assessment", tone: "warning" as const }
+      : { label: "Assessment complete", tone: "neutral" as const };
+  }
+  if (probe.deliveryStatus === "bounced") {
+    return { label: "Delivery bounced", tone: "danger" as const };
+  }
+  if (
+    probe.deliveryStatus === "opened" ||
+    probe.deliveryStatus === "completed"
+  ) {
+    return { label: "Awaiting response", tone: "neutral" as const };
+  }
+  if (probe.deliveryStatus === "assigned") {
+    return { label: "Awaiting delivery", tone: "neutral" as const };
+  }
+  return { label: "Assigned", tone: "neutral" as const };
+}
+
+function matchesFilter(probe: Probe, filter: QueueFilter) {
+  if (filter === "attention") {
+    return (
+      probe.reviewRequired === true ||
+      probe.deliveryStatus === "bounced" ||
+      probe.remediationStatus === "failed" ||
+      (Boolean(probe.responseId) && probe.gradingConfidence === null)
+    );
+  }
+  if (filter === "remediation") return Boolean(probe.remediationAssignmentId);
+  if (filter === "recheck") {
+    return probe.recheckScheduled > 0 || probe.recheckCompleted > 0;
+  }
+  if (filter === "closed") {
+    return probe.recheckCompleted > 0 && probe.recheckScheduled === 0;
+  }
+  return true;
+}
 
 export function ProbeDashboard({
   probes,
+  summary,
+  individualResultsVisible,
 }: {
   probes: ProductWorkspace["probes"];
+  summary: ProbeSummary;
+  individualResultsVisible: boolean;
 }) {
   const [selectedId, setSelectedId] = useState(probes[0]?.assignmentId);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<QueueFilter>("all");
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
-  const selected = probes.find((probe) => probe.assignmentId === selectedId);
   const visible = useMemo(
     () =>
       probes.filter((probe) => {
-        const matchesFilter =
-          filter === "all" ||
-          (filter === "remediation"
-            ? Boolean(probe.remediationAssignmentId)
-            : probe.answeredWith === filter);
-        const matchesQuery =
-          !deferredQuery ||
-          `${probe.personName} ${probe.professionalRole} ${probe.scenario}`
-            .toLowerCase()
-            .includes(deferredQuery);
-        return matchesFilter && matchesQuery;
+        const searchText = [
+          probe.personName,
+          probe.professionalRole,
+          probe.scenario,
+          probe.responseText,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return (
+          matchesFilter(probe, filter) &&
+          (!deferredQuery || searchText.includes(deferredQuery))
+        );
       }),
     [deferredQuery, filter, probes],
   );
-
-  const metrics = [
-    {
-      label: "Assigned",
-      value: probes.length,
-      detail: "Persisted assignments",
-      icon: Radio,
-      tone: "primary" as const,
-    },
-    {
-      label: "Delivered",
-      value: probes.filter((probe) => probe.deliveryStatus !== null).length,
-      detail: "Delivery evidence recorded",
-      icon: Send,
-      tone: "cyan" as const,
-    },
-    {
-      label: "Assessed",
-      value: probes.filter((probe) => probe.responseId).length,
-      detail: "Persisted responses",
-      icon: CheckCircle2,
-      tone: "success" as const,
-    },
-    {
-      label: "Rechecks complete",
-      value: probes.reduce((sum, probe) => sum + probe.recheckCompleted, 0),
-      detail: "Different-case rechecks",
-      icon: RefreshCw,
-      tone: "warning" as const,
-    },
-  ];
+  const selected =
+    visible.find((probe) => probe.assignmentId === selectedId) ?? visible[0];
 
   return (
-    <div className="grid gap-4">
-      <MetricRail items={metrics} connected />
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Surface className="min-w-0 overflow-hidden">
-          <SectionTitle
-            title="Governed probe assignments"
-            detail="Assignment, delivery, response, remediation, and recheck state joined from persisted records."
-          />
-          <div className="border-border/70 flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center">
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">Search probe assignments</span>
-              <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search probes…"
-                className="pl-9"
-              />
-            </label>
-            <div
-              className="scrollbar-subtle flex gap-2 overflow-x-auto pb-1"
-              aria-label="Probe filters"
-            >
-              {(["all", "old", "new", "other", "remediation"] as const).map(
-                (value) => (
-                  <Button
-                    key={value}
-                    variant={filter === value ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setFilter(value)}
-                  >
-                    {value === "all"
-                      ? "All"
-                      : value === "remediation"
-                        ? "Remediation"
-                        : `Answered ${value}`}
-                  </Button>
-                ),
-              )}
+    <div className="grid gap-5">
+      <LifecycleLedger summary={summary} />
+      {individualResultsVisible ? (
+        <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <Surface className="min-w-0 overflow-hidden">
+            <SectionTitle
+              title="Assignment queue"
+              detail="Persisted delivery, response, assessment, remediation, and recheck evidence for the active change."
+            />
+            <div className="border-border grid gap-3 border-b p-4 sm:grid-cols-[minmax(0,1fr)_190px] sm:px-5">
+              <label>
+                <span className="sr-only">Search assignments</span>
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search person, role, or scenario"
+                />
+              </label>
+              <label>
+                <span className="sr-only">Filter assignment queue</span>
+                <select
+                  className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-3 focus-visible:outline-none"
+                  value={filter}
+                  onChange={(event) =>
+                    setFilter(event.target.value as QueueFilter)
+                  }
+                >
+                  <option value="all">All assignments</option>
+                  <option value="attention">Needs attention</option>
+                  <option value="remediation">In remediation</option>
+                  <option value="recheck">Recheck evidence</option>
+                  <option value="closed">Recheck complete</option>
+                </select>
+              </label>
             </div>
+            <div className="divide-border divide-y">
+              {visible.map((probe) => (
+                <AssignmentRow
+                  key={probe.assignmentId}
+                  probe={probe}
+                  selected={probe.assignmentId === selected?.assignmentId}
+                  onSelect={() => setSelectedId(probe.assignmentId)}
+                />
+              ))}
+              {!visible.length ? (
+                <p className="text-muted-foreground p-8 text-center text-sm">
+                  No persisted assignments match this view.
+                </p>
+              ) : null}
+            </div>
+            <p className="text-muted-foreground border-border border-t px-5 py-3 text-xs leading-5">
+              This is a review workspace. Learners respond through their
+              governed delivery link; no response is simulated here.
+            </p>
+          </Surface>
+          <div id="assignment-inspector">
+            <AssignmentInspector probe={selected} />
           </div>
-          <div className="divide-border/70 divide-y">
-            {visible.map((probe) => (
-              <ProbeRow
-                key={probe.assignmentId}
-                probe={probe}
-                selected={probe.assignmentId === selectedId}
-                onSelect={() => setSelectedId(probe.assignmentId)}
-              />
-            ))}
-            {!visible.length ? (
-              <p className="text-muted-foreground p-8 text-center text-sm">
-                No persisted assignments match these filters.
-              </p>
-            ) : null}
-          </div>
+        </section>
+      ) : (
+        <Surface className="overflow-hidden">
+          <SectionTitle
+            title="Individual evidence restricted"
+            detail="Organization policy exposes aggregate outcomes only."
+          />
+          <p className="text-muted-foreground max-w-2xl px-5 py-5 text-sm leading-6">
+            Names, responses, and assignment-level remediation records are not
+            shown in this workspace. The closure sequence above remains an
+            aggregate of persisted workflow events.
+          </p>
         </Surface>
-        <ProbeInspector
-          probe={selected}
-          onClose={() => setSelectedId(undefined)}
-        />
-      </section>
+      )}
     </div>
   );
 }
 
-function ProbeRow({
+function LifecycleLedger({ summary }: { summary: ProbeSummary }) {
+  const {
+    assigned,
+    delivered,
+    responded,
+    assessed,
+    remediationAssigned,
+    remediated,
+    recheckScheduled,
+    rechecked,
+  } = summary;
+  const steps = [
+    ["Assigned", String(assigned), "governed assignments"],
+    ["Delivered", ratio(delivered, assigned), "delivery evidence"],
+    ["Responded", ratio(responded, assigned), "learner responses"],
+    ["Assessed", ratio(assessed, responded), "recorded assessments"],
+    ["Remediated", ratio(remediated, remediationAssigned), "passed work"],
+    [
+      "Rechecked",
+      ratio(rechecked, recheckScheduled + rechecked),
+      "different cases",
+    ],
+  ] as const;
+
+  return (
+    <Surface className="overflow-hidden">
+      <SectionTitle
+        title="Closure sequence"
+        detail="A learner closes only after a completed recheck uses a different approved case."
+      />
+      <ol
+        className="scrollbar-subtle focus-visible:ring-ring divide-border flex divide-x overflow-x-auto focus-visible:ring-3 focus-visible:outline-none"
+        aria-label="Remediation closure sequence"
+        tabIndex={0}
+      >
+        {steps.map(([label, value, detail], index) => (
+          <li className="min-w-40 flex-1 px-4 py-4" key={label}>
+            <p className="data-label">
+              {String(index + 1).padStart(2, "0")} · {label}
+            </p>
+            <p className="font-heading mt-3 text-2xl font-semibold tabular-nums">
+              {value}
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">{detail}</p>
+          </li>
+        ))}
+      </ol>
+    </Surface>
+  );
+}
+
+function AssignmentRow({
   probe,
   selected,
   onSelect,
@@ -149,145 +271,194 @@ function ProbeRow({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const state = queueState(probe);
+  const evidence = probe.responseText
+    ? `Response recorded · answered ${formatToken(probe.answeredWith)}`
+    : probe.deliveryStatus
+      ? `Delivery ${formatToken(probe.deliveryStatus)}`
+      : "No delivery evidence yet";
+
   return (
     <button
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
+      aria-controls="assignment-inspector"
       className={cn(
-        "content-auto hover:bg-muted/35 grid w-full gap-4 p-4 text-left transition-colors sm:p-5 lg:grid-cols-[190px_minmax(0,1fr)_150px]",
-        selected && "bg-primary/5 shadow-[inset_3px_0_0_var(--primary)]",
+        "hover:bg-muted/45 focus-visible:ring-ring grid w-full gap-3 p-4 text-left transition-colors duration-150 focus-visible:ring-3 focus-visible:outline-none sm:px-5 lg:grid-cols-[170px_minmax(0,1fr)_170px] lg:items-center",
+        selected && "bg-muted/70",
       )}
     >
-      <div>
-        <h2 className="font-semibold">{probe.personName}</h2>
-        <p className="text-muted-foreground mt-1 text-sm">
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-semibold">
+          {probe.personName}
+        </span>
+        <span className="text-muted-foreground mt-1 block truncate text-xs">
           {probe.professionalRole}
-        </p>
-        <p className="text-muted-foreground mt-1 font-mono text-[10px]">
-          {probe.assignmentId.slice(0, 8)}
-        </p>
-      </div>
-      <div>
-        <p className="line-clamp-2 text-sm leading-6">{probe.scenario}</p>
-        <p className="text-muted-foreground mt-2 line-clamp-1 text-xs">
-          {probe.responseText
-            ? `Response: ${probe.responseText}`
-            : "Awaiting response"}
-        </p>
-      </div>
-      <div className="space-y-2">
-        <StatusPill
-          tone={
-            !probe.responseId
-              ? "neutral"
-              : probe.answeredWith === "new"
-                ? "success"
-                : probe.answeredWith === "other"
-                  ? "warning"
-                  : "warning"
-          }
-        >
-          {probe.responseId
-            ? `Answered ${probe.answeredWith}`
-            : (probe.deliveryStatus ?? "assigned")}
-        </StatusPill>
-        {probe.gradingConfidence !== null ? (
-          <p className="text-muted-foreground text-xs">
-            Confidence {Math.round(probe.gradingConfidence * 100)}%
-          </p>
+        </span>
+        {selected ? (
+          <span className="mt-2 block text-xs font-semibold">Selected</span>
         ) : null}
-      </div>
+      </span>
+      <span className="min-w-0">
+        <span className="line-clamp-2 block text-sm leading-6">
+          {probe.scenario}
+        </span>
+        <span className="text-muted-foreground mt-1 block text-xs">
+          {evidence}
+        </span>
+      </span>
+      <span className="flex items-center justify-between gap-3 lg:block">
+        <StatusPill tone={state.tone}>{state.label}</StatusPill>
+        <span className="text-muted-foreground mt-0 block text-xs lg:mt-2">
+          Due {formatDate(probe.dueAt)}
+        </span>
+      </span>
     </button>
   );
 }
 
-function ProbeInspector({
-  probe,
-  onClose,
-}: {
-  probe: Probe | undefined;
-  onClose: () => void;
-}) {
+function AssignmentInspector({ probe }: { probe: Probe | undefined }) {
   return (
     <Surface className="h-fit overflow-hidden xl:sticky xl:top-24">
-      <div className="border-border/70 flex items-start justify-between border-b p-5">
-        <div>
-          <p className="data-label">Assignment detail</p>
-          <h2 className="mt-2 text-lg font-semibold">
-            {probe?.personName ?? "Select an assignment"}
-          </h2>
-          {probe ? (
-            <p className="text-muted-foreground mt-1 text-sm">
-              {probe.professionalRole}
-            </p>
-          ) : null}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onClose}
-          aria-label="Close assignment detail"
-        >
-          <X />
-        </Button>
-      </div>
+      <SectionTitle
+        title={probe?.personName ?? "Assignment evidence"}
+        detail={
+          probe
+            ? probe.professionalRole
+            : "Select an assignment to inspect its persisted lifecycle."
+        }
+      />
       {probe ? (
-        <div className="space-y-5 p-5">
-          <InspectorField
-            label="Delivery evidence"
-            value={probe.deliveryStatus ?? "Assigned"}
-          />
-          <InspectorField label="Prompt / scenario" value={probe.scenario} />
-          <InspectorField
-            label="Response"
-            value={probe.responseText ?? "Awaiting response"}
-          />
-          <InspectorField
-            label="Grading rationale"
-            value={
-              probe.gradingConfidence === null
-                ? "Not assessed"
-                : `Grading confidence ${Math.round(probe.gradingConfidence * 100)}%`
-            }
-          />
-          <InspectorField
-            label="Remediation status"
-            value={probe.remediationStatus ?? "Not required"}
-          />
-          <div>
-            <p className="data-label">Recheck schedule</p>
-            <p className="text-muted-foreground mt-2 text-sm">
-              {probe.recheckScheduled} scheduled · {probe.recheckCompleted}{" "}
-              complete
+        <div className="divide-border divide-y">
+          <EvidenceSection title="Assignment and delivery">
+            <EvidenceRow
+              label="Assignment ID"
+              value={probe.assignmentId}
+              mono
+            />
+            <EvidenceRow
+              label="Assigned"
+              value={formatDate(probe.assignedAt)}
+            />
+            <EvidenceRow label="Due" value={formatDate(probe.dueAt)} />
+            <EvidenceRow
+              label="Delivery"
+              value={formatToken(probe.deliveryStatus)}
+            />
+            <EvidenceRow
+              label="Case version"
+              value={probe.caseVersionId}
+              mono
+            />
+          </EvidenceSection>
+          <EvidenceSection title="Response and assessment">
+            <p className="text-sm leading-6">{probe.scenario}</p>
+            <EvidenceRow
+              label="Learner response"
+              value={probe.responseText ?? "Awaiting learner response"}
+            />
+            <EvidenceRow
+              label="Classified answer"
+              value={formatToken(probe.answeredWith)}
+            />
+            <EvidenceRow label="Current answer" value={probe.newAnswer} />
+            <EvidenceRow label="Assessment basis" value={probe.caseRationale} />
+            <EvidenceRow
+              label="Assessment confidence"
+              value={
+                probe.gradingConfidence === null
+                  ? "Not assessed"
+                  : `${Math.round(probe.gradingConfidence * 100)}%`
+              }
+            />
+            <EvidenceRow
+              label="Reviewer attention"
+              value={probe.reviewRequired ? "Required" : "Not flagged"}
+            />
+            <p className="text-muted-foreground text-xs leading-5">
+              Assessment confidence routes reviewer attention; it does not
+              establish correctness on its own.
             </p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <span className="border-border bg-muted/25 rounded-lg border px-3 py-2 text-center text-xs font-medium">
-                30-day recheck
-              </span>
-              <span className="border-border bg-muted/25 rounded-lg border px-3 py-2 text-center text-xs font-medium">
-                90-day recheck
-              </span>
+          </EvidenceSection>
+          <EvidenceSection title="Corrective work">
+            <EvidenceRow
+              label="Status"
+              value={formatToken(probe.remediationStatus)}
+            />
+            <EvidenceRow
+              label="Assigned artifact"
+              value={probe.remediationArtifactText ?? "No remediation assigned"}
+            />
+            <EvidenceRow
+              label="Latest feedback"
+              value={probe.remediationFeedback ?? "No feedback recorded"}
+            />
+          </EvidenceSection>
+          <EvidenceSection title="Different-case recheck">
+            <div className="grid grid-cols-2 gap-4">
+              <EvidenceCount label="Open" value={probe.recheckScheduled} />
+              <EvidenceCount label="Completed" value={probe.recheckCompleted} />
             </div>
-            <p className="border-primary/20 bg-primary/5 text-muted-foreground mt-3 rounded-lg border p-3 text-xs leading-5">
-              A different approved case is required for every recheck.
+            <p className="text-muted-foreground text-xs leading-5">
+              The recheck must use another approved case. Repeating the original
+              case does not close this assignment.
             </p>
-          </div>
+          </EvidenceSection>
         </div>
       ) : (
         <p className="text-muted-foreground p-5 text-sm">
-          Choose a persisted assignment to inspect its evidence and lifecycle.
+          No assignment is selected in the current queue view.
         </p>
       )}
     </Surface>
   );
 }
 
-function InspectorField({ label, value }: { label: string; value: string }) {
+function EvidenceSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-3 p-5">
+      <h3 className="data-label">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function EvidenceRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="grid min-w-0 gap-1 sm:grid-cols-[110px_minmax(0,1fr)] sm:gap-3">
+      <p className="text-muted-foreground text-xs">{label}</p>
+      <p
+        className={cn(
+          "min-w-0 text-sm leading-5 [overflow-wrap:anywhere]",
+          mono && "font-mono text-xs break-all",
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function EvidenceCount({ label, value }: { label: string; value: number }) {
   return (
     <div>
-      <p className="data-label">{label}</p>
-      <p className="text-muted-foreground mt-2 text-sm leading-6">{value}</p>
+      <p className="font-heading text-xl font-semibold tabular-nums">{value}</p>
+      <p className="text-muted-foreground mt-1 text-xs">{label}</p>
     </div>
   );
 }

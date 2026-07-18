@@ -1,217 +1,419 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  CalendarClock,
-  ClipboardCheck,
-  FileText,
-  GitCommitHorizontal,
-  Network,
-  ShieldCheck,
-  UserRoundCheck,
-  Users,
-} from "lucide-react";
 
+import {
+  BlockerQueue,
+  type Blocker,
+  DossierHeader,
+  ImpactTable,
+  NextDecision,
+  PolicyStrip,
+  RuleRevision,
+  SectionHeading,
+  type ArtifactImpact,
+  type WorkflowStep,
+  WorkflowRow,
+} from "@/components/product/control-room-ledgers";
 import { Surface } from "@/components/product/product-shell";
 import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
-import { SplitRule, WorkflowRail } from "@/components/product/product-ui";
-import { StatusPill } from "@/components/product/status";
 import { Button } from "@/components/ui/button";
-import { getProductWorkspace } from "@/modules/product";
+import { getProductWorkspace, type ProductWorkspace } from "@/modules/product";
+
+type Impact = ProductWorkspace["impacts"][number];
 
 export async function ChangeRoom() {
   const data = await getProductWorkspace();
-  const artifacts = data.impacts.filter((impact) => impact.artifactId);
-  const chain = [
-    {
-      title: "Source change",
-      detail: `${data.change.sourceTitle} ${data.change.newSourceVersionLabel}`,
-      value: data.change.validatedAt ? "Validated" : "Awaiting validation",
-      icon: FileText,
-    },
-    {
-      title: "Claims reviewed",
-      detail: `${data.claims.length} current claim versions`,
-      value: `${data.claims.filter((claim) => claim.reviewStatus === "reviewed").length} reviewed`,
-      icon: ClipboardCheck,
-    },
-    {
-      title: "Links propagated",
-      detail: `${data.impacts.length} impact paths`,
-      value: `${data.impacts.filter((impact) => impact.confidence < 0.6).length} uncertain`,
-      icon: Network,
-    },
-    {
-      title: "Artifacts impacted",
-      detail: `${artifacts.length} version-locked artifacts`,
-      value: `${data.exposures.length} role links`,
-      icon: Users,
-    },
-    {
-      title: "Remediation",
-      detail: `${data.probes.filter((probe) => probe.remediationAssignmentId).length} assigned`,
-      value: `${data.probes.filter((probe) => probe.remediationStatus === "passed").length} passed`,
-      icon: ShieldCheck,
-    },
-  ];
+  const artifacts = data.impacts
+    .filter(isArtifactImpact)
+    .toSorted(compareImpact);
+  const reviewedClaims = data.claims.filter(
+    (claim) => claim.reviewStatus === "reviewed",
+  ).length;
+  const unreviewedClaims = data.claims.length - reviewedClaims;
+  const candidateImpacts = data.impacts.filter(
+    (impact) => impact.rewriteRequired === "candidate",
+  ).length;
+  const lowConfidenceImpacts = data.impacts.filter(
+    (impact) => impact.confidence < 0.6,
+  ).length;
+  const unassignedImpacts = artifacts.filter(
+    (impact) => !impact.artifactOwner,
+  ).length;
+  const openImpactFindings = data.impacts.filter(
+    (impact) =>
+      impact.rewriteRequired === "candidate" ||
+      impact.confidence < 0.6 ||
+      (isArtifactImpact(impact) && !impact.artifactOwner),
+  ).length;
+  const activeCases = data.cases.filter((item) => item.status !== "retired");
+  const pendingCases = activeCases.filter(
+    (item) => item.status !== "approved" || !item.lockedAt,
+  ).length;
+  const unansweredProbes = data.probes.filter(
+    (probe) => !probe.responseId,
+  ).length;
+  const assessmentReviews = data.probes.filter(
+    (probe) => probe.reviewRequired,
+  ).length;
+  const remediationPending = data.probes.filter(
+    (probe) =>
+      probe.answeredWith === "old" && probe.remediationStatus !== "passed",
+  ).length;
+  const rechecksPending = data.probes.reduce(
+    (total, probe) =>
+      total + Math.max(0, probe.recheckScheduled - probe.recheckCompleted),
+    0,
+  );
+  const blockers = buildBlockers({
+    data,
+    unreviewedClaims,
+    candidateImpacts,
+    lowConfidenceImpacts,
+    unassignedImpacts,
+    pendingCases,
+    unansweredProbes,
+    assessmentReviews,
+    remediationPending,
+    rechecksPending,
+  });
+  const nextDecision = blockers[0];
+  const workflow = buildWorkflow({
+    data,
+    reviewedClaims,
+    openImpactFindings,
+    activeCases: activeCases.length,
+    pendingCases,
+    unansweredProbes,
+    assessmentReviews,
+    remediationPending,
+    rechecksPending,
+    blockers: blockers.length,
+  });
+
   return (
     <AuthenticatedProductShell
       active="overview"
-      eyebrow={`Change Room · ${data.change.reference}`}
-      title="Change Room"
-      description="Inspect the validated source change and its current downstream state."
+      title="Control room"
+      description="One governed change from evidence intake through audit closure."
       action={
         <Button asChild>
-          <Link href="/app/blast-radius">
-            Inspect blast radius
-            <ArrowRight className="size-4" />
+          <Link href={nextDecision?.href ?? "/app/audit"}>
+            {nextDecision
+              ? `Inspect step ${nextDecision.step}`
+              : "Review audit trail"}
           </Link>
         </Button>
       }
     >
-      <Link
-        href="/app/changes"
-        className="text-primary inline-flex w-fit items-center gap-2 text-sm font-medium"
-      >
-        <ArrowRight className="size-4 rotate-180" />
-        Back to change events
-      </Link>
-      <Surface className="grid gap-2 overflow-hidden p-2 sm:grid-cols-3">
-        {[
-          {
-            label: "Change",
-            value: `${data.change.reference} (${data.change.versionLabel})`,
-            icon: GitCommitHorizontal,
-            tone: "text-primary",
-          },
-          {
-            label: "Entered by",
-            value: `${data.change.enteredBy} · ${formatDate(data.change.enteredAt)}`,
-            icon: CalendarClock,
-            tone: "text-chart-2",
-          },
-          {
-            label: "Validated by",
-            value: data.change.validatedBy
-              ? `${data.change.validatedBy} · ${formatDate(data.change.validatedAt)}`
-              : "Pending",
-            icon: UserRoundCheck,
-            tone: "text-success",
-          },
-        ].map(({ label, value, icon: Icon, tone }) => (
-          <div
-            className={`border-border/70 bg-card flex min-w-0 items-start gap-3 rounded-lg border p-4 ${tone}`}
-            key={label}
-          >
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-current/15 bg-current/5">
-              <Icon className="size-4" />
-            </span>
-            <div className="text-foreground min-w-0">
-              <p className="data-label">{label}</p>
-              <p className="mt-1.5 text-sm font-semibold">{value}</p>
-            </div>
-          </div>
-        ))}
-      </Surface>
-      <Surface className="relative grid overflow-hidden lg:grid-cols-2">
-        <SplitRule
-          label="Old rule (from)"
-          text={data.change.oldRule}
-          detail={`${data.change.oldSourceVersionLabel} · ${data.change.oldEffectiveDate}`}
-        />
-        <span className="border-border bg-card absolute top-1/2 left-1/2 z-10 hidden size-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border shadow-sm lg:grid">
-          <ArrowRight className="size-4" />
-        </span>
-        <SplitRule
-          label="New rule (to)"
-          text={data.change.newRule}
-          detail={`${data.change.newSourceVersionLabel} · ${data.change.newEffectiveDate}`}
-          current
-        />
-      </Surface>
+      <DossierHeader data={data} blockers={blockers.length} />
+
+      <RuleRevision data={data} />
+
       <Surface>
-        <div className="border-border border-b px-4 py-3 sm:px-6">
-          <p className="text-muted-foreground text-xs uppercase">
-            Evidence-to-impact chain
-          </p>
-        </div>
-        <div className="p-4 sm:p-6">
-          <WorkflowRail
-            steps={chain.map((item, index) => ({
-              ...item,
-              state:
-                index === chain.length - 1
-                  ? ("current" as const)
-                  : ("complete" as const),
-            }))}
-          />
-        </div>
+        <SectionHeading
+          title="Closure ledger"
+          detail="The same order as the governed workflow. Each row links to the evidence behind its state."
+        />
+        <ol aria-label="Governed workflow closure state">
+          {workflow.map((item) => (
+            <WorkflowRow key={item.step} item={item} />
+          ))}
+        </ol>
       </Surface>
+
+      <Surface className="grid lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.65fr)]">
+        <NextDecision blocker={nextDecision} />
+        <BlockerQueue blockers={blockers} />
+      </Surface>
+
       <Surface>
-        <div className="scrollbar-subtle overflow-x-auto" tabIndex={0}>
-          <table className="w-full text-left text-sm">
-            <thead className="text-muted-foreground border-border hidden border-b text-xs uppercase md:table-header-group">
-              <tr>
-                <th className="px-6 py-3">Artifact</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Impact</th>
-                <th className="px-4 py-3">Owner</th>
-                <th className="px-4 py-3">Exposure</th>
-              </tr>
-            </thead>
-            <tbody>
-              {artifacts.map((impact) => {
-                const exposures = data.exposures.filter(
-                  (item) => item.artifactVersionId === impact.objectId,
-                );
-                return (
-                  <tr
-                    className="border-border/70 content-auto hover:bg-muted/35 grid border-b p-4 transition-colors last:border-0 md:table-row md:p-0"
-                    key={impact.id}
-                  >
-                    <td className="py-2 md:px-6 md:py-4">
-                      <p className="font-semibold">{impact.artifactTitle}</p>
-                      <p className="text-muted-foreground text-xs">
-                        {impact.artifactVersionLabel}
-                      </p>
-                    </td>
-                    <td className="text-muted-foreground py-1 text-xs md:px-4 md:py-4 md:text-sm">
-                      {impact.artifactKind}
-                    </td>
-                    <td className="py-2 md:px-4 md:py-4">
-                      <StatusPill
-                        tone={
-                          impact.rewriteRequired === "yes"
-                            ? "danger"
-                            : "neutral"
-                        }
-                      >
-                        {impact.rewriteRequired === "yes"
-                          ? "Rewrite required"
-                          : impact.kind.replaceAll("_", " ")}
-                      </StatusPill>
-                    </td>
-                    <td className="py-1 text-sm md:px-4 md:py-4">
-                      {impact.artifactOwner ?? "Unassigned"}
-                    </td>
-                    <td className="text-muted-foreground py-1 text-xs md:px-4 md:py-4 md:text-sm">
-                      {exposures.reduce(
-                        (sum, item) => sum + item.peopleCount,
-                        0,
-                      )}{" "}
-                      people ·{" "}
-                      {exposures.map((item) => item.roleName).join(", ") ||
-                        "No role"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <SectionHeading
+          title="Impacted obligations"
+          detail="Downstream artifacts, accountable owners, and potential role exposure for this change."
+        />
+        <ImpactTable artifacts={artifacts} exposures={data.exposures} />
       </Surface>
+
+      <PolicyStrip data={data} />
     </AuthenticatedProductShell>
   );
 }
-function formatDate(value: string | null) {
-  return value ? new Date(value).toLocaleString() : "Pending";
+
+function buildBlockers(input: {
+  data: ProductWorkspace;
+  unreviewedClaims: number;
+  candidateImpacts: number;
+  lowConfidenceImpacts: number;
+  unassignedImpacts: number;
+  pendingCases: number;
+  unansweredProbes: number;
+  assessmentReviews: number;
+  remediationPending: number;
+  rechecksPending: number;
+}): Blocker[] {
+  const blockers: Blocker[] = [];
+  if (input.unreviewedClaims > 0) {
+    blockers.push({
+      step: "01",
+      title: "Verify extracted claims",
+      detail: `${input.unreviewedClaims} claim ${input.unreviewedClaims === 1 ? "version needs" : "versions need"} human review.`,
+      href: "/app/review",
+    });
+  }
+  if (!input.data.change.validatedAt || !input.data.change.lockedAt) {
+    blockers.push({
+      step: "02",
+      title: "Validate and lock the source change",
+      detail: input.data.change.validatedAt
+        ? "Second-person validation is recorded; the change version is not locked."
+        : "The source change is awaiting second-person validation.",
+      href: "/app/changes",
+    });
+  }
+  if (input.data.impacts.length === 0) {
+    blockers.push({
+      step: "03",
+      title: "Establish downstream paths",
+      detail:
+        "No dependency path is recorded for this validated change version.",
+      href: "/app/graph",
+    });
+  }
+  const impactIssues = [
+    countPhrase(
+      input.candidateImpacts,
+      "candidate classification",
+      "candidate classifications",
+    ),
+    countPhrase(
+      input.lowConfidenceImpacts,
+      "low-confidence path",
+      "low-confidence paths",
+    ),
+    countPhrase(
+      input.unassignedImpacts,
+      "unassigned owner",
+      "unassigned owners",
+    ),
+  ].filter(Boolean);
+  if (impactIssues.length > 0) {
+    blockers.push({
+      step: "04",
+      title: "Triage the open impact findings",
+      detail: `${joinList(impactIssues)} remain in the impact review.`,
+      href: "/app/blast-radius",
+    });
+  }
+  if (input.data.organization.configuration === "displace") {
+    if (
+      input.data.cases.filter((item) => item.status !== "retired").length === 0
+    ) {
+      blockers.push({
+        step: "05",
+        title: "Create an active divergence case",
+        detail: "No active case is available for the changed rule.",
+        href: "/app/cases",
+      });
+    } else if (input.pendingCases > 0) {
+      blockers.push({
+        step: "05",
+        title: "Approve and lock decision cases",
+        detail: `${input.pendingCases} active ${input.pendingCases === 1 ? "case is" : "cases are"} not approval-ready.`,
+        href: "/app/cases",
+      });
+    }
+    const outcomeIssues = [
+      countPhrase(
+        input.unansweredProbes,
+        "unassessed assignment",
+        "unassessed assignments",
+      ),
+      countPhrase(
+        input.assessmentReviews,
+        "response needing review",
+        "responses needing review",
+      ),
+      countPhrase(
+        input.remediationPending,
+        "old-rule response awaiting remediation",
+        "old-rule responses awaiting remediation",
+      ),
+      countPhrase(
+        input.rechecksPending,
+        "pending different-case recheck",
+        "pending different-case rechecks",
+      ),
+    ].filter(Boolean);
+    if (outcomeIssues.length > 0) {
+      blockers.push({
+        step: "06",
+        title: "Close assessment and remediation work",
+        detail: `${joinList(outcomeIssues)} remain open.`,
+        href: "/app/probes",
+      });
+    }
+  }
+  if (input.data.reports.length === 0) {
+    blockers.push({
+      step: "07",
+      title: "Generate a checksummed audit bundle",
+      detail: "No report bundle is recorded for this change version.",
+      href: "/app/audit",
+    });
+  }
+  return blockers;
+}
+
+function buildWorkflow(input: {
+  data: ProductWorkspace;
+  reviewedClaims: number;
+  openImpactFindings: number;
+  activeCases: number;
+  pendingCases: number;
+  unansweredProbes: number;
+  assessmentReviews: number;
+  remediationPending: number;
+  rechecksPending: number;
+  blockers: number;
+}): WorkflowStep[] {
+  const displace = input.data.organization.configuration === "displace";
+  const outcomeIssues =
+    input.unansweredProbes +
+    input.assessmentReviews +
+    input.remediationPending +
+    input.rechecksPending;
+
+  return [
+    {
+      step: "01",
+      title: "Evidence intake",
+      evidence: `${input.reviewedClaims} of ${input.data.claims.length} claim versions reviewed`,
+      state:
+        input.reviewedClaims === input.data.claims.length &&
+        input.reviewedClaims > 0
+          ? "complete"
+          : "action",
+      stateLabel:
+        input.reviewedClaims === input.data.claims.length &&
+        input.reviewedClaims > 0
+          ? "Reviewed"
+          : "Needs review",
+      href: "/app/review",
+    },
+    {
+      step: "02",
+      title: "Source change",
+      evidence: input.data.change.validatedBy
+        ? `Validated by ${input.data.change.validatedBy}`
+        : "Second reviewer not recorded",
+      state:
+        input.data.change.validatedAt && input.data.change.lockedAt
+          ? "complete"
+          : "action",
+      stateLabel:
+        input.data.change.validatedAt && input.data.change.lockedAt
+          ? "Locked"
+          : "Open",
+      href: "/app/changes",
+    },
+    {
+      step: "03",
+      title: "Dependency map",
+      evidence: `${input.data.impacts.length} downstream impact paths recorded`,
+      state: input.data.impacts.length > 0 ? "complete" : "action",
+      stateLabel: input.data.impacts.length > 0 ? "Mapped" : "No paths",
+      href: "/app/graph",
+    },
+    {
+      step: "04",
+      title: "Impact review",
+      evidence: `${input.data.impacts.filter(isArtifactImpact).length} artifacts triaged; ${input.openImpactFindings} open findings`,
+      state: input.openImpactFindings === 0 ? "complete" : "action",
+      stateLabel:
+        input.openImpactFindings === 0 ? "Triaged" : "Needs decisions",
+      href: "/app/blast-radius",
+    },
+    {
+      step: "05",
+      title: "Decision cases",
+      evidence: displace
+        ? `${input.activeCases - input.pendingCases} of ${input.activeCases} active cases approved and locked`
+        : "Not used in Propagate mode",
+      state: !displace
+        ? "not-applicable"
+        : input.activeCases > 0 && input.pendingCases === 0
+          ? "complete"
+          : "action",
+      stateLabel: !displace
+        ? "Not in mode"
+        : input.activeCases > 0 && input.pendingCases === 0
+          ? "Approved"
+          : "Open",
+      href: "/app/cases",
+    },
+    {
+      step: "06",
+      title: "Remediation",
+      evidence: displace
+        ? `${input.data.probes.length} assignments; ${outcomeIssues} open work items`
+        : "Not used in Propagate mode",
+      state: !displace
+        ? "not-applicable"
+        : input.data.probes.length > 0 && outcomeIssues === 0
+          ? "complete"
+          : "action",
+      stateLabel: !displace
+        ? "Not in mode"
+        : input.data.probes.length === 0
+          ? "Not started"
+          : outcomeIssues === 0
+            ? "Complete"
+            : "In progress",
+      href: "/app/probes",
+    },
+    {
+      step: "07",
+      title: "Audit trail",
+      evidence: `${input.data.reports.length} checksummed report ${input.data.reports.length === 1 ? "bundle" : "bundles"} recorded`,
+      state:
+        input.data.reports.length === 0
+          ? "pending"
+          : input.blockers === 0
+            ? "complete"
+            : "prepared",
+      stateLabel:
+        input.data.reports.length === 0
+          ? "Not generated"
+          : input.blockers === 0
+            ? "Ready"
+            : "Prepared",
+      href: "/app/audit",
+    },
+  ];
+}
+
+function isArtifactImpact(impact: Impact): impact is ArtifactImpact {
+  return Boolean(
+    impact.artifactId &&
+    impact.artifactTitle &&
+    impact.artifactKind &&
+    impact.artifactVersionLabel,
+  );
+}
+
+function compareImpact(a: ArtifactImpact, b: ArtifactImpact) {
+  const priority = { yes: 0, candidate: 1, no: 2 } as const;
+  return (
+    priority[a.rewriteRequired] - priority[b.rewriteRequired] ||
+    a.confidence - b.confidence
+  );
+}
+
+function countPhrase(count: number, singular: string, plural: string) {
+  return count > 0 ? `${count} ${count === 1 ? singular : plural}` : "";
+}
+
+function joinList(items: string[]) {
+  if (items.length < 2) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
 }

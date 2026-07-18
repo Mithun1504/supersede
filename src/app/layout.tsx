@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 
 import { AppProviders } from "@/components/providers/app-providers";
-import { geistMono, geistSans } from "@/lib/fonts";
+import { bodyFont, headingFont } from "@/lib/fonts";
 
 import "./globals.css";
 
@@ -11,15 +11,16 @@ export const metadata: Metadata = {
     default: "Supersede",
     template: "%s | Supersede",
   },
-  description: "Evidence-backed change propagation for governed organizations.",
+  description:
+    "Governed change propagation from source evidence to verified remediation.",
   applicationName: "Supersede",
 };
 
 export const viewport: Viewport = {
   colorScheme: "light dark",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f8fa" },
-    { media: "(prefers-color-scheme: dark)", color: "#111827" },
+    { media: "(prefers-color-scheme: light)", color: "#f6f1e7" },
+    { media: "(prefers-color-scheme: dark)", color: "#1d151b" },
   ],
 };
 
@@ -33,7 +34,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable}`}
+      className={`${bodyFont.variable} ${headingFont.variable}`}
       suppressHydrationWarning
     >
       <body>

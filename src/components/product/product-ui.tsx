@@ -1,5 +1,5 @@
 import type React from "react";
-import { ArrowRight, Check, Circle } from "lucide-react";
+import { ArrowRight, Check, CircleAlert, Minus } from "lucide-react";
 
 import { Surface } from "@/components/product/product-shell";
 import { cn } from "@/lib/utils";
@@ -13,19 +13,11 @@ export type MetricItem = {
 };
 
 const metricTone = {
-  primary: "text-primary bg-primary/8 border-primary/15",
-  cyan: "text-chart-2 bg-chart-2/8 border-chart-2/15",
-  success: "text-success bg-success/8 border-success/15",
-  warning: "text-warning bg-warning/10 border-warning/20",
-  danger: "text-destructive bg-destructive/8 border-destructive/15",
-} as const;
-
-const metricTileTone = {
-  primary: "border-border border-t-primary/45 hover:border-primary/25",
-  cyan: "border-border border-t-chart-2/45 hover:border-chart-2/25",
-  success: "border-border border-t-success/45 hover:border-success/25",
-  warning: "border-border border-t-warning/50 hover:border-warning/30",
-  danger: "border-border border-t-destructive/45 hover:border-destructive/25",
+  primary: "text-primary",
+  cyan: "text-chart-2",
+  success: "text-success",
+  warning: "text-warning",
+  danger: "text-destructive",
 } as const;
 
 export function MetricRail({
@@ -36,54 +28,38 @@ export function MetricRail({
   connected?: boolean;
 }) {
   return (
-    <Surface className="relative overflow-hidden p-1.5">
-      <div
-        className={cn(
-          "grid gap-2",
-          items.length === 4
-            ? "sm:grid-cols-2 xl:grid-cols-4"
-            : "sm:grid-cols-2 lg:grid-cols-3",
-        )}
-      >
-        {items.map((item, index) => {
+    <Surface className="overflow-hidden">
+      <dl aria-label={connected ? "Connected measures" : "Measures"}>
+        {items.map((item) => {
           const Icon = item.icon;
           const tone = item.tone ?? "primary";
+
           return (
-            <article
-              className={cn(
-                "group bg-card relative min-w-0 overflow-hidden rounded-lg border border-t-2 p-4 transition-[border-color,box-shadow] duration-200 hover:shadow-sm sm:p-5",
-                metricTileTone[tone],
-              )}
+            <div
+              className="border-border grid gap-2 border-b px-4 py-4 last:border-b-0 sm:grid-cols-[minmax(9rem,0.7fr)_minmax(6rem,0.35fr)_minmax(14rem,1fr)] sm:items-baseline sm:gap-5 sm:px-6"
               key={item.label}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="data-label">{item.label}</p>
-                  <p className="font-heading mt-2 text-3xl font-semibold tabular-nums">
-                    {item.value}
-                  </p>
-                </div>
+              <dt className="flex min-w-0 items-center gap-2 text-sm font-bold">
                 {Icon ? (
-                  <span
-                    className={cn(
-                      "grid size-9 shrink-0 place-items-center rounded-lg border",
-                      metricTone[tone],
-                    )}
-                  >
-                    <Icon className="size-4" />
-                  </span>
+                  <Icon className={cn("size-4 shrink-0", metricTone[tone])} />
                 ) : null}
-              </div>
-              <p className="text-muted-foreground mt-2 text-xs leading-5">
+                {item.label}
+              </dt>
+              <dd
+                className={cn(
+                  "font-heading text-2xl font-semibold tabular-nums",
+                  metricTone[tone],
+                )}
+              >
+                {item.value}
+              </dd>
+              <dd className="text-muted-foreground text-sm leading-6">
                 {item.detail}
-              </p>
-              {connected && index < items.length - 1 ? (
-                <ArrowRight className="text-muted-foreground/35 absolute top-1/2 -right-2 z-10 hidden size-4 -translate-y-1/2 xl:block" />
-              ) : null}
-            </article>
+              </dd>
+            </div>
           );
         })}
-      </div>
+      </dl>
     </Surface>
   );
 }
@@ -96,6 +72,13 @@ export type WorkflowStep = {
   icon?: React.ComponentType<{ className?: string }> | undefined;
 };
 
+const stateLabel = {
+  complete: "Complete",
+  current: "In review",
+  pending: "Not started",
+  warning: "Attention",
+} as const;
+
 export function WorkflowRail({
   steps,
   className,
@@ -104,79 +87,50 @@ export function WorkflowRail({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "scrollbar-subtle grid gap-0 overflow-x-auto pb-2 lg:grid-cols-[repeat(var(--step-count),minmax(0,1fr))] lg:overflow-visible",
-        className,
-      )}
-      style={{ "--step-count": steps.length } as React.CSSProperties}
-    >
+    <ol className={cn("border-border border-y", className)}>
       {steps.map((step, index) => {
-        const Icon = step.icon;
         const state = step.state ?? "pending";
+        const Icon =
+          state === "complete"
+            ? Check
+            : state === "current"
+              ? ArrowRight
+              : state === "warning"
+                ? CircleAlert
+                : Minus;
+
         return (
-          <article
+          <li
             className={cn(
-              "relative min-w-52 px-3 py-2 lg:min-w-0",
-              state === "complete" && "text-foreground",
-              state === "current" && "bg-accent/45 rounded-lg",
-              state === "warning" && "bg-warning/5 rounded-lg",
+              "border-border grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3 border-b py-3 last:border-b-0 sm:grid-cols-[2.5rem_minmax(10rem,0.55fr)_minmax(12rem,1fr)_auto] sm:items-center sm:gap-5",
+              state === "current" && "bg-accent/45",
+              state === "warning" && "bg-warning/5",
             )}
             key={step.title}
           >
-            {index < steps.length - 1 ? (
-              <span
-                className={cn(
-                  "bg-border absolute top-8 left-12 z-0 h-px w-[calc(100%-1rem)]",
-                  (state === "complete" || state === "current") && "bg-primary",
-                )}
-              />
-            ) : null}
-            <div
-              className={cn(
-                "bg-card relative z-10 grid size-8 place-items-center rounded-full border transition-colors duration-200",
-                state === "complete" &&
-                  "border-success/50 bg-success/8 text-success",
-                state === "current" &&
-                  "border-primary bg-primary text-primary-foreground ring-primary/10 ring-3",
-                state === "warning" &&
-                  "border-warning/50 bg-warning/8 text-warning",
-                state === "pending" &&
-                  "text-muted-foreground border-border/80 bg-card/60",
-              )}
-            >
-              {Icon ? (
-                <Icon className="size-4" />
-              ) : state === "complete" ? (
-                <Check className="size-4" />
-              ) : (
-                <Circle className="size-3" />
-              )}
-            </div>
-            <h3 className="font-heading text-foreground mt-3 text-sm font-semibold">
-              {step.title}
-            </h3>
-            <p className="text-muted-foreground mt-1 text-xs leading-5">
+            <span className="text-muted-foreground flex items-center gap-1 pl-2 text-xs font-bold tabular-nums">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <p className="text-foreground font-bold">{step.title}</p>
+            <p className="text-muted-foreground col-start-2 text-sm leading-5 sm:col-start-auto">
               {step.detail}
             </p>
-            {step.value ? (
-              <p
-                className={cn(
-                  "mt-2 text-xs font-bold tracking-wide uppercase",
-                  state === "warning"
-                    ? "text-warning"
-                    : state === "complete"
-                      ? "text-success"
-                      : "text-primary",
-                )}
-              >
-                {step.value}
-              </p>
-            ) : null}
-          </article>
+            <p
+              className={cn(
+                "col-start-2 flex items-center gap-1.5 text-xs font-bold sm:col-start-auto sm:justify-end sm:pr-3",
+                state === "complete" && "text-success",
+                state === "current" && "text-primary",
+                state === "warning" && "text-warning",
+                state === "pending" && "text-muted-foreground",
+              )}
+            >
+              <Icon className="size-3.5" aria-hidden="true" />
+              {step.value ?? stateLabel[state]}
+            </p>
+          </li>
         );
       })}
-    </div>
+    </ol>
   );
 }
 
@@ -192,36 +146,28 @@ export function SplitRule({
   current?: boolean;
 }) {
   return (
-    <div
+    <section
       className={cn(
-        "relative min-h-40 overflow-hidden p-5 sm:p-6",
-        current ? "bg-success/5" : "bg-destructive/[0.035]",
+        "min-h-40 p-5 sm:p-6",
+        current ? "bg-success/[0.045]" : "bg-muted/35",
       )}
     >
-      <span
-        className={cn(
-          "absolute inset-y-0 left-0 w-1.5 rounded-r-lg transition-transform",
-          current ? "bg-success" : "bg-destructive/65",
-        )}
-      />
       <p
         className={cn(
-          "w-fit rounded-md px-2 py-1 text-[10px] font-semibold tracking-wider uppercase",
-          current
-            ? "bg-success/12 dark:text-success text-[oklch(0.32_0.09_165)]"
-            : "bg-destructive/12 dark:text-destructive text-[oklch(0.42_0.16_25)]",
+          "text-xs font-bold",
+          current ? "text-success" : "text-destructive",
         )}
       >
         {label}
       </p>
-      <p className="font-heading text-foreground mt-5 text-base leading-relaxed font-semibold text-pretty">
+      <blockquote className="font-heading text-foreground mt-4 text-base leading-relaxed font-semibold text-pretty">
         {text}
-      </p>
+      </blockquote>
       {detail ? (
         <p className="text-muted-foreground mt-5 font-mono text-[10px] tracking-tight">
           {detail}
         </p>
       ) : null}
-    </div>
+    </section>
   );
 }

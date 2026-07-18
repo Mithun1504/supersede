@@ -1,34 +1,59 @@
-import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 
-import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
 import { ProbeDashboard } from "@/components/product/probe-dashboard";
+import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
 import { Button } from "@/components/ui/button";
 import { getProductWorkspace } from "@/modules/product";
 
 export const metadata: Metadata = {
-  title: "Instinct Probes",
+  title: "Remediation",
 };
 
 export default async function ProbesPage() {
   const data = await getProductWorkspace();
+  const probes = data.probes;
+  const learners = [
+    ...new Map(probes.map((probe) => [probe.personId, probe])).values(),
+  ];
+  const summary = {
+    assigned: probes.length,
+    delivered: probes.filter(
+      (probe) =>
+        probe.deliveryStatus === "opened" ||
+        probe.deliveryStatus === "completed",
+    ).length,
+    responded: probes.filter((probe) => probe.responseId).length,
+    assessed: probes.filter((probe) => probe.gradingConfidence !== null).length,
+    remediationAssigned: probes.filter((probe) => probe.remediationAssignmentId)
+      .length,
+    remediated: probes.filter((probe) => probe.remediationStatus === "passed")
+      .length,
+    recheckScheduled: learners.reduce(
+      (sum, probe) => sum + probe.recheckScheduled,
+      0,
+    ),
+    rechecked: learners.reduce((sum, probe) => sum + probe.recheckCompleted, 0),
+  };
+
   return (
     <AuthenticatedProductShell
       active="probes"
-      eyebrow="Instinct probes"
-      title="Instinct probes"
-      description="Delivered cold, short, and specific. A probe measures one response under one wording at one time."
+      title="Remediation"
+      description="Follow each governed assignment from delivery through assessment, corrective work, and a different-case recheck."
       action={
         <Button asChild>
           <Link href="/app/audit" data-product-action="view-audit">
-            View audit
-            <ArrowRight className="size-4" aria-hidden="true" />
+            Open audit trail
           </Link>
         </Button>
       }
     >
-      <ProbeDashboard probes={data.probes} />
+      <ProbeDashboard
+        probes={data.organization.individualResultsVisible ? data.probes : []}
+        summary={summary}
+        individualResultsVisible={data.organization.individualResultsVisible}
+      />
     </AuthenticatedProductShell>
   );
 }

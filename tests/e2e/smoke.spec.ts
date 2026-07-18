@@ -2,16 +2,16 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type APIResponse, type Page } from "@playwright/test";
 
 const publicRoutes = [
-  ["/", "Version control for organizational knowledge."],
-  ["/app", "Change Room"],
-  ["/app/review", "Evidence review queue"],
-  ["/app/graph", "Graph Briefing"],
-  ["/app/changes", "Change events"],
-  ["/app/blast-radius", "Blast radius"],
-  ["/app/cases", "Divergence cases"],
-  ["/app/probes", "Instinct probes"],
-  ["/app/audit", "Audit"],
-  ["/app/walkthrough", "Read-only product walkthrough"],
+  ["/", "When the rule changes, show what changed with it."],
+  ["/app", "Control room"],
+  ["/app/review", "Evidence intake"],
+  ["/app/graph", "Dependency map"],
+  ["/app/changes", "Source change"],
+  ["/app/blast-radius", "Impact review"],
+  ["/app/cases", "Decision cases"],
+  ["/app/probes", "Remediation"],
+  ["/app/audit", "Audit trail"],
+  ["/app/walkthrough", "Demo guide"],
 ] as const;
 
 test.describe("public release surfaces", () => {
@@ -45,12 +45,13 @@ test.describe("public release surfaces", () => {
 test("public walkthrough is visibly seeded and read-only", async ({ page }) => {
   await page.goto("/app/walkthrough");
 
-  await expect(page.getByText("Public seeded walkthrough")).toBeVisible();
+  await expect(page.getByText("Public demo record")).toBeVisible();
   await expect(
     page.getByText(
-      /safe for public review because it uses fictional clinical content/i,
+      /Fictional clinical content · No mutations · No real people/i,
     ),
   ).toBeVisible();
+  await expect(page.getByText("Follow the working order")).toBeVisible();
   await expect(
     page.locator("main form, main button, main input, main textarea"),
   ).toHaveCount(0);
@@ -99,16 +100,18 @@ test("live extraction requires sign-in before an anonymous mutation", async ({
   await page.goto("/app/review");
 
   await expect(
-    page.getByRole("heading", { name: "Extract claims from a real source" }),
+    page.getByRole("heading", { name: "Add a source to the record" }),
   ).toBeVisible();
-  await expect(page.getByLabel("Protocol text")).toBeDisabled();
+  await expect(page.getByLabel("Source text")).toBeDisabled();
   await expect(
-    page.getByRole("button", { name: "Run live extraction" }),
+    page.getByRole("button", { name: "Extract claims" }),
   ).toBeDisabled();
   await expect(
-    page.getByRole("link", { name: "Sign in to run extraction" }),
+    page.getByRole("link", { name: "Sign in to continue" }),
   ).toHaveAttribute("href", "/sign-in?returnTo=/app/review");
-  await expect(page.getByText(/Live claims, verified quotes/)).toBeVisible();
+  await expect(
+    page.getByText(/quote-matched claims enter the governed queue/i),
+  ).toBeVisible();
 });
 
 test("liveness and readiness report distinct operational semantics", async ({
@@ -160,39 +163,64 @@ test("five-minute seeded path preserves evidence from review through audit", asy
   await page.goto("/app/walkthrough");
   await page
     .locator("main")
-    .getByRole("link", { name: /Claim review/ })
+    .getByRole("link", { name: /Begin at evidence intake/ })
     .click();
 
   await expect(page).toHaveURL(/\/app\/review$/);
-  await expect(page.getByText("Extracted source citations.")).toBeVisible();
-  await expect(page.getByText("Governed workflow")).toBeVisible();
+  await expect(page.getByText("Claims on record")).toBeVisible();
+  await expect(page.getByText("Evidence passage").first()).toBeVisible();
+  await expect(page.getByText("Review priority signal").first()).toBeVisible();
 
-  await clickProductLink(page, "Change events");
+  await clickProductLink(page, "Source change");
   await expect(page).toHaveURL(/\/app\/changes$/);
-  await expect(page.getByText("Old rule (from)")).toBeVisible();
-  await expect(page.getByText("New rule (to)")).toBeVisible();
-  await expect(page.getByText("Validated by")).toBeVisible();
+  await expect(page.getByText("Old rule")).toBeVisible();
+  await expect(page.getByText("New rule")).toBeVisible();
+  await expect(page.getByText("Governance record")).toBeVisible();
 
-  await page.getByRole("link", { name: "View blast radius" }).click();
+  await clickProductLink(page, "Dependency map");
+  await expect(page).toHaveURL(/\/app\/graph$/);
+  await expect(
+    page
+      .getByLabel("Find a record in the dependency path")
+      .filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Selected record").filter({ visible: true }),
+  ).toBeVisible();
+
+  await clickProductLink(page, "Impact review");
   await expect(page).toHaveURL(/\/app\/blast-radius$/);
-  await expect(page.getByText("Rewrite required").first()).toBeVisible();
-  await expect(page.getByText("Selected path")).toBeVisible();
+  await expect(page.getByText("Owner triage ledger")).toBeVisible();
+  await expect(
+    page.getByText(/potentially exposed people/i).first(),
+  ).toBeVisible();
 
-  await page.getByRole("link", { name: "View divergence cases" }).click();
+  await clickProductLink(page, "Decision cases");
   await expect(page).toHaveURL(/\/app\/cases$/);
-  await expect(page.getByText("approved", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Approval invariant/)).toBeVisible();
+  await expect(page.getByText("Old rule outcome").first()).toBeVisible();
+  await expect(page.getByText("New rule outcome").first()).toBeVisible();
+  await expect(
+    page.getByText("Approval and version lock").first(),
+  ).toBeVisible();
 
-  await page.getByRole("link", { name: "Open probes" }).click();
+  await clickProductLink(page, "Remediation");
   await expect(page).toHaveURL(/\/app\/probes$/);
-  await expect(page.getByText("Governed probe assignments")).toBeVisible();
-  await expect(page.getByText(/Answered old/).first()).toBeVisible();
-  await expect(page.getByText("different approved case")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Assignment queue", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Closure sequence", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/different approved case/i).first(),
+  ).toBeVisible();
 
-  await page.getByRole("link", { name: "View audit" }).click();
+  await clickProductLink(page, "Audit trail");
   await expect(page).toHaveURL(/\/app\/audit$/);
-  await expect(page.getByText("Append-only log")).toBeVisible();
-  await expect(page.getByText(/SHA-256/)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Append-only events", exact: true }),
+  ).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/SHA-256 checksum/)).toBeVisible();
   await expect(
     page.getByText("Governed approvals", { exact: true }),
   ).toBeVisible();
@@ -237,12 +265,16 @@ async function expectUnauthenticatedProblem(response: APIResponse) {
 }
 
 async function clickProductLink(page: Page, name: string) {
-  const visibleLink = page
+  let visibleLink = page
     .getByRole("link", { name, exact: true })
     .filter({ visible: true });
 
   if ((await visibleLink.count()) === 0) {
-    await page.getByRole("button", { name: "More sections" }).click();
+    await page
+      .getByRole("button", { name: "Open workflow navigation" })
+      .click();
+    visibleLink = page.getByRole("dialog").getByRole("link", { name });
+    await expect(visibleLink).toBeVisible();
   }
 
   await visibleLink.click();

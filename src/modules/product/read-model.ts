@@ -31,6 +31,8 @@ type CoreRow = {
   enteredBy: string;
   validatedBy: string | null;
   sourceTitle: string;
+  oldSourceVersionId: string;
+  newSourceVersionId: string;
   oldSourceVersionLabel: string;
   newSourceVersionLabel: string;
   oldEffectiveDate: string;
@@ -59,6 +61,7 @@ type ClaimRow = {
   artifactVersionLabel: string;
   artifactKind: string;
   reviewedBy: string | null;
+  hasReviewedSourceDependency: boolean;
 };
 
 type ImpactRow = {
@@ -202,6 +205,8 @@ export type ProductWorkspace = {
     enteredBy: string;
     validatedBy: string | null;
     sourceTitle: string;
+    oldSourceVersionId: string;
+    newSourceVersionId: string;
     oldSourceVersionLabel: string;
     newSourceVersionLabel: string;
     oldEffectiveDate: string;
@@ -227,6 +232,7 @@ export type ProductWorkspace = {
     artifactVersionLabel: string;
     artifactKind: string;
     reviewedBy: string | null;
+    hasReviewedSourceDependency: boolean;
   }>;
   impacts: Array<{
     id: string;
@@ -370,6 +376,8 @@ async function loadWorkspace(
       entered.display_name as "enteredBy",
       validated.display_name as "validatedBy",
       s.title as "sourceTitle",
+      old_sv.id::text as "oldSourceVersionId",
+      new_sv.id::text as "newSourceVersionId",
       old_sv.version_label as "oldSourceVersionLabel",
       new_sv.version_label as "newSourceVersionLabel",
       old_sv.effective_date::text as "oldEffectiveDate",
@@ -417,7 +425,22 @@ async function loadWorkspace(
       a.title as "artifactTitle",
       av.version_label as "artifactVersionLabel",
       a.kind::text as "artifactKind",
-      reviewer.display_name as "reviewedBy"
+      reviewer.display_name as "reviewedBy",
+      exists (
+        select 1
+        from dependency_edge edge
+        join dependency_edge_version edge_version
+          on edge_version.organization_id = edge.organization_id
+         and edge_version.edge_id = edge.id
+        where edge.organization_id = c.organization_id
+          and edge.kind = 'supports'
+          and edge.from_object_type = 'claim_version'
+          and edge.from_object_id = cv.id
+          and edge.to_object_type = 'source_version'
+          and edge.to_object_id = ${active.oldSourceVersionId}
+          and edge_version.review_status = 'reviewed'
+          and edge_version.locked_at is not null
+      ) as "hasReviewedSourceDependency"
     from claim c
     join claim_version cv on cv.claim_id = c.id and cv.organization_id = c.organization_id
     join artifact_version av on av.id = c.artifact_version_id
@@ -667,6 +690,8 @@ async function loadWorkspace(
       enteredBy: active.enteredBy,
       validatedBy: active.validatedBy,
       sourceTitle: active.sourceTitle,
+      oldSourceVersionId: active.oldSourceVersionId,
+      newSourceVersionId: active.newSourceVersionId,
       oldSourceVersionLabel: active.oldSourceVersionLabel,
       newSourceVersionLabel: active.newSourceVersionLabel,
       oldEffectiveDate: active.oldEffectiveDate,
@@ -693,6 +718,7 @@ async function loadWorkspace(
       artifactVersionLabel: row.artifactVersionLabel,
       artifactKind: row.artifactKind,
       reviewedBy: row.reviewedBy,
+      hasReviewedSourceDependency: row.hasReviewedSourceDependency,
     })),
     impacts: impactResult.rows.map((row) => ({
       id: row.impactId,

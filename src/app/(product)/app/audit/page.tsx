@@ -1,172 +1,239 @@
 import type { Metadata } from "next";
-import {
-  CheckCircle2,
-  ClipboardList,
-  Download,
-  RefreshCw,
-  Send,
-} from "lucide-react";
+
 import { SectionTitle, Surface } from "@/components/product/product-shell";
 import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
-import { MetricRail } from "@/components/product/product-ui";
-import { StatusPill } from "@/components/product/status";
 import { Button } from "@/components/ui/button";
 import { getProductWorkspace } from "@/modules/product";
 
-export const metadata: Metadata = { title: "Audit" };
+export const metadata: Metadata = { title: "Audit trail" };
+
+const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "UTC",
+});
+
+function formatDateTime(value: string) {
+  return `${dateTimeFormatter.format(new Date(value))} UTC`;
+}
+
+function formatToken(value: string) {
+  return value.replace(/[._]/g, " ");
+}
+
 export default async function AuditPage() {
   const data = await getProductWorkspace();
+  const latestReport = data.reports[0];
+  const learners = [
+    ...new Map(data.probes.map((probe) => [probe.personId, probe])).values(),
+  ];
+  const timelineLabel =
+    data.timeline.length === 100
+      ? "Latest 100 events"
+      : `${data.timeline.length} events`;
   const stages = [
-    ["Assigned", data.probes.length, "Persisted probe assignments"],
+    ["Assigned", data.probes.length, "governed assignments"],
     [
       "Assessed",
-      data.probes.filter((probe) => probe.responseId).length,
-      "Persisted responses",
+      data.probes.filter((probe) => probe.gradingConfidence !== null).length,
+      "recorded assessments",
     ],
     [
       "Remediated",
       data.probes.filter((probe) => probe.remediationStatus === "passed")
         .length,
-      "Passed remediation assignments",
+      "passed corrective work",
     ],
     [
       "Rechecked",
-      data.probes.reduce((sum, probe) => sum + probe.recheckCompleted, 0),
-      "Completed different-case rechecks",
+      learners.reduce((sum, probe) => sum + probe.recheckCompleted, 0),
+      "different-case completions",
     ],
   ] as const;
+
   return (
     <AuthenticatedProductShell
       active="audit"
-      eyebrow="Audit"
-      title="Audit"
-      description="Observable outcomes, append-only records, and a verifiable export generated from the current tenant data."
+      title="Audit trail"
+      description="Trace the assignments, decisions, approvals, and export evidence linked to the active change dossier."
       action={
-        <Button asChild variant="outline">
-          <a href="/api/v1/public/walkthrough/audit-export" download>
-            <Download className="size-4" />
-            Download checksummed bundle
-          </a>
-        </Button>
+        !data.viewer.authenticated ? (
+          <Button asChild variant="outline">
+            <a href="/api/v1/public/walkthrough/audit-export" download>
+              Download public demo bundle
+            </a>
+          </Button>
+        ) : undefined
       }
     >
-      <MetricRail
-        connected
-        items={stages.map(([label, value, detail], index) => ({
-          label,
-          value,
-          detail,
-          icon: [Send, ClipboardList, CheckCircle2, RefreshCw][index],
-          tone: (["primary", "cyan", "success", "warning"] as const)[index],
-        }))}
-      />
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Surface className="min-w-0">
+      <div className="grid gap-5">
+        <Surface className="overflow-hidden">
           <SectionTitle
-            title="Append-only log"
-            detail={`${data.timeline.length} events currently linked to ${data.change.reference}.`}
-            action={
-              <div className="border-border bg-muted/50 flex rounded-lg border p-1 text-xs">
-                <span className="bg-card rounded-md px-3 py-1.5 font-semibold shadow-sm">
-                  Audit events
-                </span>
-                <span className="text-muted-foreground px-3 py-1.5">
-                  Approval records · {data.approvals.length}
-                </span>
-              </div>
-            }
+            title="Closure ledger"
+            detail={`Observable outcomes for ${data.change.reference}. Counts follow the audit report contract.`}
           />
-          <div className="scrollbar-subtle overflow-x-auto" tabIndex={0}>
-            <table className="w-full text-left text-sm">
-              <thead className="text-muted-foreground border-border hidden border-b text-xs uppercase md:table-header-group">
-                <tr>
-                  <th className="px-4 py-3 sm:px-6">Timestamp</th>
-                  <th className="px-4 py-3">Actor</th>
-                  <th className="px-4 py-3">Event</th>
-                  <th className="px-4 py-3">Object</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.timeline.map((event) => (
-                  <tr
-                    className="border-border/70 content-auto hover:bg-muted/35 grid gap-1 border-b p-4 transition-colors last:border-0 md:table-row md:p-0"
-                    key={event.id}
-                  >
-                    <td className="py-1 font-mono text-xs md:px-4 md:py-4 md:text-sm md:first:px-6">
-                      {new Date(event.occurredAt).toLocaleString()}
-                    </td>
-                    <td className="py-1 font-medium md:px-4 md:py-4">
-                      {event.actor}
-                    </td>
-                    <td className="py-1 md:px-4 md:py-4">
-                      {event.eventType.replaceAll("_", " ")}
-                    </td>
-                    <td className="text-muted-foreground py-1 font-mono text-xs md:px-4 md:py-4">
-                      {event.objectType} · {event.objectId.slice(0, 8)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="border-border flex justify-between gap-3 border-t p-4 sm:px-6">
-            <p className="text-muted-foreground text-xs">
-              {data.approvals.length} governed approvals · {data.reports.length}{" "}
-              stored report bundles
-            </p>
-            <StatusPill tone="warning">
-              Standard retention · not WORM
-            </StatusPill>
-          </div>
-        </Surface>
-        <Surface className="h-fit overflow-hidden xl:sticky xl:top-24">
-          <SectionTitle
-            title="Export verification"
-            detail="Verify the governed bundle before release."
-          />
-          <dl className="divide-border/70 divide-y p-5 text-sm">
-            <Verification
-              label="Report cutoff"
-              value={
-                data.reports[0]
-                  ? new Date(data.reports[0].cutoffAt).toLocaleString()
-                  : "No stored bundle"
-              }
-            />
-            <Verification
-              label="SHA-256 checksum"
-              value={data.reports[0]?.sha256 ?? "Unavailable"}
-              mono
-            />
-            <Verification
-              label="Retention mode"
-              value="Standard retention · not WORM"
-            />
-          </dl>
-          <div className="border-border/70 border-t p-5">
-            <p className="data-label">Governed approvals</p>
-            <div className="mt-3 space-y-2">
-              {data.approvals.length ? (
-                data.approvals.slice(0, 3).map((approval) => (
-                  <p
-                    className="text-muted-foreground text-xs"
-                    key={approval.id}
-                  >
-                    <span className="text-foreground font-medium">
-                      {approval.action.replaceAll("_", " ")}
-                    </span>{" "}
-                    · {approval.actor}
-                  </p>
-                ))
-              ) : (
-                <p className="text-muted-foreground text-xs">
-                  No governed approvals linked.
+          <ol
+            className="scrollbar-subtle focus-visible:ring-ring divide-border flex divide-x overflow-x-auto focus-visible:ring-3 focus-visible:outline-none"
+            aria-label="Audit closure sequence"
+            tabIndex={0}
+          >
+            {stages.map(([label, value, detail], index) => (
+              <li className="min-w-44 flex-1 px-5 py-4" key={label}>
+                <p className="data-label">
+                  {String(index + 1).padStart(2, "0")} · {label}
                 </p>
-              )}
-            </div>
-          </div>
+                <p className="font-heading mt-3 text-2xl font-semibold tabular-nums">
+                  {value}
+                </p>
+                <p className="text-muted-foreground mt-1 text-xs">{detail}</p>
+              </li>
+            ))}
+          </ol>
         </Surface>
-      </section>
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <Surface className="min-w-0 overflow-hidden">
+            <SectionTitle
+              title="Append-only events"
+              detail={`${timelineLabel} · ${data.approvals.length} approval records · ${data.reports.length} stored bundles`}
+            />
+            <div
+              className="scrollbar-subtle focus-visible:ring-ring overflow-x-auto focus-visible:ring-3 focus-visible:outline-none"
+              tabIndex={0}
+              role="region"
+              aria-label="Audit events table"
+            >
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <caption className="sr-only">
+                  Append-only audit events for {data.change.reference}
+                </caption>
+                <thead className="text-muted-foreground border-border border-b text-xs">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Timestamp</th>
+                    <th className="px-4 py-3 font-medium">Actor</th>
+                    <th className="px-4 py-3 font-medium">Event</th>
+                    <th className="px-4 py-3 font-medium">Object</th>
+                    <th className="px-4 py-3 font-medium">Version</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-border divide-y">
+                  {data.timeline.map((event) => (
+                    <tr
+                      className="hover:bg-muted/40 transition-colors duration-150"
+                      key={event.id}
+                    >
+                      <td className="px-5 py-4 font-mono text-xs whitespace-nowrap">
+                        <time dateTime={event.occurredAt}>
+                          {formatDateTime(event.occurredAt)}
+                        </time>
+                      </td>
+                      <td className="px-4 py-4 font-medium">
+                        {event.actor || "System"}
+                      </td>
+                      <td className="px-4 py-4 capitalize">
+                        {formatToken(event.eventType)}
+                      </td>
+                      <td className="text-muted-foreground px-4 py-4 font-mono text-xs break-all">
+                        {formatToken(event.objectType)} · {event.objectId}
+                      </td>
+                      <td className="text-muted-foreground px-4 py-4 font-mono text-xs break-all">
+                        {event.objectVersionId ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!data.timeline.length ? (
+              <p className="text-muted-foreground border-border border-t p-5 text-sm">
+                No append-only events are linked to this change.
+              </p>
+            ) : null}
+          </Surface>
+
+          <div className="grid h-fit gap-5 xl:sticky xl:top-24">
+            <Surface className="overflow-hidden">
+              <SectionTitle
+                title="Stored audit packet"
+                detail="Verification evidence from the latest generated report bundle."
+              />
+              <dl className="divide-border divide-y px-5">
+                <Verification
+                  label="Report cutoff"
+                  value={
+                    latestReport
+                      ? formatDateTime(latestReport.cutoffAt)
+                      : "No stored bundle"
+                  }
+                />
+                <Verification
+                  label="Locked"
+                  value={
+                    latestReport
+                      ? formatDateTime(latestReport.lockedAt)
+                      : "Not available"
+                  }
+                />
+                <Verification
+                  label="SHA-256 checksum"
+                  value={latestReport?.sha256 ?? "Not available"}
+                  mono
+                />
+                <Verification
+                  label="Report bundle"
+                  value={latestReport?.id ?? "Not available"}
+                  mono
+                />
+              </dl>
+              <p className="text-muted-foreground border-border border-t px-5 py-4 text-xs leading-5">
+                Retention mode is not exposed by this workspace view. Verify the
+                bundle manifest before release. The download above is generated
+                from public demo data using standard storage, not WORM.
+              </p>
+            </Surface>
+
+            <Surface className="overflow-hidden">
+              <SectionTitle
+                title="Governed approvals"
+                detail="Actor, role, action, and locked object version."
+              />
+              <div className="divide-border divide-y">
+                {data.approvals.map((approval) => (
+                  <article className="space-y-2 px-5 py-4" key={approval.id}>
+                    <p className="text-sm font-semibold capitalize">
+                      {formatToken(approval.action)}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {approval.actor} · {formatToken(approval.role)} ·{" "}
+                      <time dateTime={approval.createdAt}>
+                        {formatDateTime(approval.createdAt)}
+                      </time>
+                    </p>
+                    <dl className="text-muted-foreground grid gap-1 font-mono text-xs break-all">
+                      <div>
+                        <dt className="inline font-sans">Object · </dt>
+                        <dd className="inline">
+                          {formatToken(approval.objectType)} ·{" "}
+                          {approval.objectId}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="inline font-sans">Version ID · </dt>
+                        <dd className="inline">{approval.objectVersionId}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))}
+                {!data.approvals.length ? (
+                  <p className="text-muted-foreground px-5 py-4 text-sm">
+                    No governed approvals are linked to this change.
+                  </p>
+                ) : null}
+              </div>
+            </Surface>
+          </div>
+        </section>
+      </div>
     </AuthenticatedProductShell>
   );
 }
@@ -181,11 +248,13 @@ function Verification({
   mono?: boolean;
 }) {
   return (
-    <div className="py-3 first:pt-0 last:pb-0">
+    <div className="py-4">
       <dt className="data-label">{label}</dt>
       <dd
         className={
-          mono ? "mt-2 font-mono text-xs break-all" : "mt-2 text-sm font-medium"
+          mono
+            ? "mt-2 font-mono text-xs leading-5 break-all"
+            : "mt-2 text-sm leading-5 font-medium"
         }
       >
         {value}

@@ -1,5 +1,5 @@
 import type React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import axe from "axe-core";
 import { describe, expect, it, vi } from "vitest";
 
@@ -28,13 +28,18 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("ProductShell", () => {
-  it("renders accessible product navigation and skip link", async () => {
+  it("renders the governed workflow in use order with the demo guide separate", async () => {
     const { container } = render(
       <ProductShell
-        active="overview"
-        eyebrow="Blast radius"
-        title="Blast radius"
+        active="blast-radius"
+        title="Impact review"
         description="Potential exposure across seeded paths."
+        viewer={{
+          displayName: "Review Owner",
+          authenticated: true,
+          organizationReady: true,
+        }}
+        viewerAction={<button type="button">Sign out</button>}
         workspace={{
           organizationName: "Test Health",
           configuration: "displace",
@@ -49,12 +54,66 @@ describe("ProductShell", () => {
     expect(
       screen.getByRole("link", { name: "Skip to content" }),
     ).toHaveAttribute("href", "#content");
+
+    const workflow = screen.getByRole("navigation", {
+      name: "Governed workflow",
+    });
+    const expectedOrder = [
+      "Control room",
+      "Evidence intake",
+      "Source change",
+      "Dependency map",
+      "Impact review",
+      "Decision cases",
+      "Remediation",
+      "Audit trail",
+    ];
+    const workflowLinks = within(workflow).getAllByRole("link");
+
+    expect(workflowLinks).toEqual(
+      expectedOrder.map((name) => within(workflow).getByRole("link", { name })),
+    );
     expect(
-      screen.getAllByRole("link", { name: /Blast radius/i })[0],
+      within(workflow).getByRole("link", {
+        name: "Impact review",
+      }),
     ).toHaveAttribute("aria-current", "page");
+    expect(
+      within(workflow).queryByRole("link", { name: "Demo guide" }),
+    ).not.toBeInTheDocument();
+
+    const sidebar = container.querySelector("aside");
+    expect(sidebar).not.toBeNull();
+    const demoGuide = within(sidebar!).getByRole("link", {
+      name: "Demo guide",
+    });
+    expect(
+      Boolean(
+        workflow.compareDocumentPosition(demoGuide) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true);
+
     expect(screen.getByText("Seeded blast-radius content")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Change color theme" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open workflow navigation" }),
+    );
+    const mobileWorkflow = await screen.findByRole("navigation", {
+      name: "Workflow order",
+    });
+    expect(
+      within(mobileWorkflow).queryByRole("link", { name: /Demo guide/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole("navigation", { name: "Product guide" }),
+      ).getByRole("link", { name: /Demo guide/ }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Sign out" }),
     ).toBeInTheDocument();
     expect((await axe.run(container)).violations).toHaveLength(0);
   });

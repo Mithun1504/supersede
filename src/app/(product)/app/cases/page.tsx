@@ -1,168 +1,319 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import {
-  ArrowRight,
-  GitCompareArrows,
-  LockKeyhole,
-  ShieldCheck,
-} from "lucide-react";
+
 import { Surface } from "@/components/product/product-shell";
 import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
 import { StatusPill } from "@/components/product/status";
 import { Button } from "@/components/ui/button";
-import { getProductWorkspace } from "@/modules/product";
-import { cn } from "@/lib/utils";
+import { getProductWorkspace, type ProductWorkspace } from "@/modules/product";
 
-export const metadata: Metadata = { title: "Divergence Cases" };
+export const metadata: Metadata = { title: "Decision Cases" };
+
+type DecisionCase = ProductWorkspace["cases"][number];
+
 export default async function CasesPage() {
   const data = await getProductWorkspace();
+  const hasRemediationAssignments = data.probes.some((probe) =>
+    data.cases.some(
+      (item) =>
+        item.versionId === probe.caseVersionId && isReleaseEligible(item),
+    ),
+  );
+
   return (
     <AuthenticatedProductShell
       active="cases"
-      eyebrow="Divergence cases"
-      title="Divergence cases"
-      description="Versioned cases compare the retired and current answer; only approved versions can reach learners."
+      title="Decision cases"
+      description="Inspect where the retired and current rules produce different decisions, plus the approved evidence locked for remediation."
       action={
-        <Button asChild>
-          <Link href="/app/probes">
-            Open probes
-            <ArrowRight className="size-4" />
-          </Link>
-        </Button>
+        hasRemediationAssignments ? (
+          <Button asChild>
+            <Link href="/app/probes">Open remediation assignments</Link>
+          </Button>
+        ) : undefined
       }
     >
-      <div className="grid gap-4">
-        {data.cases.map((item) => (
-          <Surface key={item.versionId} className="overflow-hidden">
-            <div className="p-4 sm:p-6">
-              <div className="flex justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-semibold">{item.scenario}</h2>
-                  <p className="text-muted-foreground mt-1 font-mono text-xs">
-                    {item.id.slice(0, 8)} · {item.versionLabel}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <LockKeyhole
-                    className="text-muted-foreground size-4"
-                    aria-label="Version locked"
-                  />
-                  <StatusPill
-                    tone={
-                      item.status === "approved"
-                        ? "success"
-                        : item.status === "retired"
-                          ? "neutral"
-                          : "warning"
-                    }
-                  >
-                    {item.status}
-                  </StatusPill>
-                </div>
-              </div>
-              <div className="relative mt-5 grid overflow-hidden rounded-xl border lg:grid-cols-2">
-                <Answer label="Old answer" text={item.oldAnswer} />
-                <Answer
-                  label="New answer"
-                  text={item.newAnswer}
-                  approved={item.status === "approved"}
-                />
-                <span className="border-border bg-card absolute top-1/2 left-1/2 z-10 hidden size-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border shadow-sm lg:grid">
-                  <GitCompareArrows className="text-primary size-4" />
-                </span>
-              </div>
-              <p className="text-muted-foreground mt-4 text-sm">
-                Authored by {item.author}
-                {item.approver
-                  ? ` · approved by ${item.approver}`
-                  : " · awaiting approval"}
-              </p>
-              {item.ambiguityNote ? (
-                <p className="text-warning-foreground mt-3 text-sm">
-                  {item.ambiguityNote}
-                </p>
-              ) : null}
-            </div>
-            <div className="border-border/70 bg-muted/20 grid gap-4 border-t p-4 sm:grid-cols-3 sm:p-6">
-              <CaseFact label="Rationale" value={item.rationale} />
-              <CaseFact
-                label="Old rule citation"
-                value={citationSummary(item.oldCitation)}
-              />
-              <CaseFact
-                label="New rule citation"
-                value={citationSummary(item.newCitation)}
-              />
-            </div>
-            <div className="border-border/70 flex flex-col gap-3 border-t p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-              <p className="text-muted-foreground inline-flex items-center gap-2 text-xs">
-                <ShieldCheck className="text-success size-4" /> Approval
-                invariant: only approved, version-locked cases can reach probes.
-              </p>
-              <p className="text-muted-foreground text-xs">
-                Different approved cases are required for 30/90-day rechecks.
-              </p>
-            </div>
+      <div className="grid gap-6">
+        {data.cases.length ? (
+          data.cases.map((item) => (
+            <DecisionCaseDossier item={item} key={item.versionId} />
+          ))
+        ) : (
+          <Surface className="px-5 py-8 sm:px-6">
+            <h2 className="text-lg font-semibold">No decision case authored</h2>
+            <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-6">
+              Author a case where the retired and current rules produce
+              different answers, then submit that exact version for approval.
+            </p>
           </Surface>
-        ))}
+        )}
       </div>
     </AuthenticatedProductShell>
   );
 }
-function Answer({
-  label,
-  text,
-  approved = false,
+
+function DecisionCaseDossier({ item }: { item: DecisionCase }) {
+  const release = getReleaseState(item);
+
+  return (
+    <Surface className="overflow-hidden">
+      <article aria-labelledby={`case-${item.versionId}`}>
+        <CaseHeader item={item} release={release} />
+        <DecisionBoundary item={item} />
+        <ApprovalLedger item={item} />
+        <footer className="border-border bg-muted/20 grid gap-1 border-t px-5 py-4 text-sm sm:grid-cols-[9rem_minmax(0,1fr)] sm:px-6">
+          <p className="font-bold">Release policy</p>
+          <p className="text-muted-foreground">{release.detail}</p>
+        </footer>
+      </article>
+    </Surface>
+  );
+}
+
+function CaseHeader({
+  item,
+  release,
 }: {
+  item: DecisionCase;
+  release: ReturnType<typeof getReleaseState>;
+}) {
+  return (
+    <header className="grid gap-4 px-5 py-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:px-6 sm:py-6">
+      <div className="min-w-0">
+        <p className="text-muted-foreground font-mono text-xs tabular-nums">
+          Case {item.id.slice(0, 8)} / {item.versionLabel}
+        </p>
+        <h2
+          className="mt-2 max-w-4xl text-xl font-semibold text-balance sm:text-2xl"
+          id={`case-${item.versionId}`}
+        >
+          {item.scenario}
+        </h2>
+      </div>
+      <StatusPill tone={release.tone}>{release.label}</StatusPill>
+    </header>
+  );
+}
+
+function DecisionBoundary({ item }: { item: DecisionCase }) {
+  return (
+    <section aria-labelledby={`boundary-${item.versionId}`}>
+      <h3
+        className="border-border border-t px-5 pt-5 text-base font-semibold sm:px-6"
+        id={`boundary-${item.versionId}`}
+      >
+        Decision boundary
+      </h3>
+      <p className="text-muted-foreground px-5 pt-2 text-sm leading-6 sm:px-6">
+        {item.rationale}
+      </p>
+      <div className="border-border mt-5 grid border-t lg:grid-cols-2">
+        <DecisionAnswer
+          citation={item.oldCitation}
+          label="Old rule outcome"
+          outcome={item.oldAnswer}
+        />
+        <DecisionAnswer
+          citation={item.newCitation}
+          current
+          label="New rule outcome"
+          outcome={item.newAnswer}
+        />
+      </div>
+      {item.ambiguityNote ? (
+        <div className="border-border grid gap-1 border-t px-5 py-4 text-sm sm:grid-cols-[9rem_minmax(0,1fr)] sm:px-6">
+          <p className="font-bold">Review note</p>
+          <p className="text-warning-foreground dark:text-warning">
+            {item.ambiguityNote}
+          </p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function DecisionAnswer({
+  citation,
+  current = false,
+  label,
+  outcome,
+}: {
+  citation: Record<string, unknown>;
+  current?: boolean;
   label: string;
-  text: string;
-  approved?: boolean;
+  outcome: string;
 }) {
   return (
     <div
-      className={cn(
-        "relative min-h-40 overflow-hidden p-5 sm:p-6",
-        approved ? "bg-success/5" : "bg-destructive/[0.035]",
-      )}
+      className={
+        current
+          ? "border-border bg-primary/[0.035] border-t p-5 sm:p-6 lg:border-t-0 lg:border-l"
+          : "bg-muted/15 p-5 sm:p-6"
+      }
     >
-      <span
-        className={cn(
-          "absolute inset-y-0 w-1",
-          approved ? "bg-success left-0" : "bg-destructive/65 right-0",
-        )}
-      />
-      <span
-        className={cn(
-          "w-fit rounded-md px-2 py-1 text-[10px] font-semibold tracking-wider uppercase",
-          approved
-            ? "bg-success/12 dark:text-success text-[oklch(0.32_0.09_165)]"
-            : "bg-destructive/10 dark:text-destructive text-[oklch(0.42_0.16_25)]",
-        )}
-      >
-        {label}
-      </span>
-      <p className="font-heading text-foreground mt-5 text-base leading-relaxed font-semibold">
-        {text}
+      <p className="text-muted-foreground text-xs font-medium">{label}</p>
+      <p className="font-heading mt-3 text-xl leading-8 font-semibold text-pretty">
+        {outcome}
       </p>
+      <CitationRecord citation={citation} />
     </div>
   );
 }
 
-function CaseFact({ label, value }: { label: string; value: string }) {
+function CitationRecord({ citation }: { citation: Record<string, unknown> }) {
+  const entries = Object.entries(citation);
+
   return (
-    <div>
-      <p className="data-label">{label}</p>
-      <p className="text-muted-foreground mt-2 text-xs leading-5">{value}</p>
-    </div>
+    <dl className="border-border mt-6 grid gap-3 border-t pt-4">
+      {entries.length ? (
+        entries.map(([key, value]) => (
+          <div
+            className="grid gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]"
+            key={key}
+          >
+            <dt className="text-muted-foreground text-xs">
+              {humanizeKey(key)}
+            </dt>
+            <dd className="font-mono text-xs leading-5 break-words">
+              {formatCitationValue(value)}
+            </dd>
+          </div>
+        ))
+      ) : (
+        <div>
+          <dt className="text-muted-foreground text-xs">Citation</dt>
+          <dd className="mt-1 text-xs">Retained in the locked record</dd>
+        </div>
+      )}
+    </dl>
   );
 }
 
-function citationSummary(citation: Record<string, unknown>) {
-  const values = Object.values(citation).filter(
-    (value): value is string | number =>
-      typeof value === "string" || typeof value === "number",
+function ApprovalLedger({ item }: { item: DecisionCase }) {
+  const rows = [
+    {
+      label: "Case author",
+      value: item.author,
+      detail: "Authored this comparison",
+    },
+    {
+      label: "Independent approval",
+      value: item.approver ?? "Not approved",
+      detail: item.approvedAt
+        ? `Approved ${formatDate(item.approvedAt)}`
+        : "Approval is still required",
+    },
+    {
+      label: "Version lock",
+      value: item.lockedAt ? "Locked" : "Open",
+      detail: item.lockedAt
+        ? `Locked ${formatDate(item.lockedAt)}`
+        : "Not eligible for learner delivery",
+    },
+  ];
+
+  return (
+    <section aria-labelledby={`approval-${item.versionId}`}>
+      <h3
+        className="border-border border-t px-5 pt-5 text-base font-semibold sm:px-6"
+        id={`approval-${item.versionId}`}
+      >
+        Approval and version lock
+      </h3>
+      <dl className="divide-border grid divide-y px-5 py-3 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-6">
+        {rows.map((row) => (
+          <div className="py-3 sm:px-5 sm:first:pl-0" key={row.label}>
+            <dt className="text-muted-foreground text-xs font-medium">
+              {row.label}
+            </dt>
+            <dd className="mt-2 text-sm font-bold">{row.value}</dd>
+            <dd className="text-muted-foreground mt-1 text-xs leading-5">
+              {row.detail}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
-  return values.length
-    ? values.join(" · ")
-    : "Citation retained in the version-locked record";
+}
+
+function isReleaseEligible(item: DecisionCase) {
+  return (
+    item.status === "approved" && Boolean(item.lockedAt) && !item.ambiguityNote
+  );
+}
+
+function getReleaseState(item: DecisionCase) {
+  if (item.status === "retired") {
+    return {
+      label: "Retired",
+      detail:
+        "This version is retained for audit history and cannot be delivered.",
+      tone: "neutral" as const,
+    };
+  }
+
+  if (item.ambiguityNote) {
+    return {
+      label: "Ambiguous, blocked",
+      detail:
+        "Ambiguous cases cannot be approved or delivered. Retire this version and author a clearer decision boundary.",
+      tone: "warning" as const,
+    };
+  }
+
+  if (item.status !== "approved") {
+    return {
+      label: "Awaiting approval",
+      detail:
+        "A case approver must approve this exact version before it can be used in remediation.",
+      tone: "warning" as const,
+    };
+  }
+
+  if (!item.lockedAt) {
+    return {
+      label: "Approved, not locked",
+      detail:
+        "Approval is recorded, but delivery remains blocked until this exact case version is locked.",
+      tone: "plum" as const,
+    };
+  }
+
+  return {
+    label: "Approved and locked",
+    detail:
+      "This exact version is eligible for separate release authorization. Rechecks must use a different approved case.",
+    tone: "success" as const,
+  };
+}
+
+function humanizeKey(value: string) {
+  const spaced = value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replaceAll("_", " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function formatCitationValue(value: unknown) {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
+
+  return value === null
+    ? "Not recorded"
+    : (JSON.stringify(value) ?? "Recorded");
+}
+
+function formatDate(value: string | null) {
+  return value
+    ? new Intl.DateTimeFormat("en", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(new Date(value))
+    : "Not recorded";
 }
