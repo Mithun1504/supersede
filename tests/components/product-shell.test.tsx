@@ -38,6 +38,7 @@ describe("ProductShell", () => {
           displayName: "Review Owner",
           authenticated: true,
           organizationReady: true,
+          authenticationAvailable: true,
         }}
         viewerAction={<button type="button">Sign out</button>}
         workspace={{

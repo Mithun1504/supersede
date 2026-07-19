@@ -20,6 +20,7 @@ describe("toProblemDetails", () => {
       requestId: "request-123",
       status: 409,
       title: "The object version is stale.",
+      type: "urn:supersede:problem:conflict",
     });
   });
 

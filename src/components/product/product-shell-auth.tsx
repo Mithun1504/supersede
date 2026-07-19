@@ -4,6 +4,7 @@ import {
   ProductShell,
   type ProductViewer,
 } from "@/components/product/product-shell";
+import { isWorkOSConfigured } from "@/lib/env/server";
 import { signOutAction } from "@/modules/identity/actions";
 import { getProductWorkspace } from "@/modules/product";
 
@@ -18,6 +19,7 @@ export async function AuthenticatedProductShell(props: ProductShellProps) {
     displayName: data.viewer.displayName,
     organizationReady: data.viewer.organizationReady,
     authenticated: data.viewer.authenticated,
+    authenticationAvailable: isWorkOSConfigured(),
   };
 
   return (

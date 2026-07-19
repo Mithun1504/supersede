@@ -94,10 +94,14 @@ test("anonymous mutation endpoints return problem details", async ({
   }
 });
 
-test("live extraction requires sign-in before an anonymous mutation", async ({
+test("live extraction explains the available access path before mutation", async ({
   page,
 }) => {
   await page.goto("/app/review");
+  const health = await page.request.get("/api/v1/health");
+  const configuration = (await health.json()) as {
+    configuration: { workos: boolean };
+  };
 
   await expect(
     page.getByRole("heading", { name: "Add a source to the record" }),
@@ -106,12 +110,87 @@ test("live extraction requires sign-in before an anonymous mutation", async ({
   await expect(
     page.getByRole("button", { name: "Extract claims" }),
   ).toBeDisabled();
-  await expect(
-    page.getByRole("link", { name: "Sign in to continue" }),
-  ).toHaveAttribute("href", "/sign-in?returnTo=/app/review");
+  if (configuration.configuration.workos) {
+    await expect(
+      page.getByRole("link", { name: "Sign in to continue" }),
+    ).toHaveAttribute("href", "/sign-in?returnTo=/app/review");
+  } else {
+    await expect(
+      page.getByText(/Live source intake is disabled in this public demo/i),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Sign in to continue" }),
+    ).toHaveCount(0);
+  }
   await expect(
     page.getByText(/quote-matched claims enter the governed queue/i),
   ).toBeVisible();
+});
+
+test("unconfigured sign-in renders a public-demo page instead of problem JSON", async ({
+  page,
+}) => {
+  const health = await page.request.get("/api/v1/health");
+  const configuration = (await health.json()) as {
+    configuration: { workos: boolean };
+  };
+  test.skip(configuration.configuration.workos, "WorkOS is configured.");
+
+  const response = await page.goto("/sign-in?returnTo=/app/review");
+
+  expect(response?.status()).toBe(200);
+  expect(response?.headers()["content-type"]).toContain("text/html");
+  await expect(
+    page.getByRole("heading", {
+      name: "Live sign-in is unavailable in this demo",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Return to the public workspace" }),
+  ).toHaveAttribute("href", "/app/review");
+  await expect(page.locator("body")).not.toContainText("supersede.local");
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(accessibility.violations).toEqual([]);
+});
+
+test("crawler metadata is available", async ({ request }) => {
+  const [robots, sitemap] = await Promise.all([
+    request.get("/robots.txt"),
+    request.get("/sitemap.xml"),
+  ]);
+
+  expect(robots.status()).toBe(200);
+  expect(await robots.text()).toContain(
+    "Sitemap: https://supersede-bay.vercel.app/sitemap.xml",
+  );
+  expect(sitemap.status()).toBe(200);
+  expect(await sitemap.text()).toContain(
+    "https://supersede-bay.vercel.app/app/walkthrough",
+  );
+});
+
+test("collapsed workflow rail keeps readable route abbreviations", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Desktop sidebar only.");
+  await page.goto("/app");
+  const collapseSidebar = page.getByRole("button", {
+    name: "Collapse sidebar",
+  });
+  await collapseSidebar.hover();
+  await expect(page.getByRole("tooltip")).toContainText("Collapse sidebar");
+  await collapseSidebar.click();
+
+  await expect(
+    page.getByRole("button", { name: "Expand sidebar" }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("navigation", { name: "Governed workflow" })
+      .getByRole("link", { name: "Control room" }),
+  ).toContainText("CO");
 });
 
 test("liveness and readiness report distinct operational semantics", async ({
@@ -159,7 +238,7 @@ test("liveness and readiness report distinct operational semantics", async ({
 
 test("five-minute seeded path preserves evidence from review through audit", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.goto("/app/walkthrough");
   await page
     .locator("main")
@@ -187,6 +266,17 @@ test("five-minute seeded path preserves evidence from review through audit", asy
   await expect(
     page.getByText("Selected record").filter({ visible: true }),
   ).toBeVisible();
+  const graphSearch = page
+    .getByLabel("Find a record in the dependency path")
+    .filter({ visible: true });
+  await graphSearch.fill("not-a-real-record");
+  await expect(
+    page
+      .getByText(/No records match/i)
+      .filter({ visible: true })
+      .first(),
+  ).toBeVisible();
+  await graphSearch.fill("");
 
   await clickProductLink(page, "Impact review");
   await expect(page).toHaveURL(/\/app\/blast-radius$/);
@@ -224,6 +314,20 @@ test("five-minute seeded path preserves evidence from review through audit", asy
   await expect(
     page.getByText("Governed approvals", { exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Generate checksummed bundle" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("link", { name: "Download public demo bundle" }),
+  ).toBeVisible();
+  const auditTable = page.getByRole("region", { name: "Audit events table" });
+  if (testInfo.project.name === "chromium") {
+    expect(
+      await auditTable.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth + 1,
+      ),
+    ).toBe(true);
+  }
 });
 
 async function expectNoPageOverflow(page: Page) {

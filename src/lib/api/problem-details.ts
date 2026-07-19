@@ -28,7 +28,7 @@ export function toProblemDetails(
       });
 
   return {
-    type: `https://supersede.local/problems/${safeError.code.toLowerCase()}`,
+    type: `urn:supersede:problem:${safeError.code.toLowerCase()}`,
     title: safeError.message,
     status: safeError.status,
     code: safeError.code,

@@ -2,6 +2,7 @@ export type ProductViewer = {
   displayName: string;
   organizationReady: boolean;
   authenticated: boolean;
+  authenticationAvailable: boolean;
 };
 
 export type ProductShellWorkspace = {

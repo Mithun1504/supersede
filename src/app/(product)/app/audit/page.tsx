@@ -51,31 +51,46 @@ export default async function AuditPage() {
       "different-case completions",
     ],
   ] as const;
+  const auditAction = data.viewer.authenticated ? (
+    data.viewer.roles.includes("auditor") ? (
+      <MutationButton
+        endpoint="/api/v1/exports"
+        label="Generate checksummed bundle"
+        body={{
+          changeEventId: data.change.id,
+          changeEventVersionId: data.change.versionId,
+          retentionMode: "standard",
+        }}
+      />
+    ) : undefined
+  ) : (
+    <div className="grid gap-2">
+      <div className="flex flex-wrap gap-2">
+        <Button disabled aria-describedby="public-bundle-notice">
+          Generate checksummed bundle
+        </Button>
+        <Button asChild variant="outline">
+          <a href="/api/v1/public/walkthrough/audit-export" download>
+            Download public demo bundle
+          </a>
+        </Button>
+      </div>
+      <p
+        id="public-bundle-notice"
+        className="text-muted-foreground max-w-sm text-xs leading-5"
+      >
+        Live generation is disabled in the public demo. Download the prepared
+        checksummed bundle instead.
+      </p>
+    </div>
+  );
 
   return (
     <AuthenticatedProductShell
       active="audit"
       title="Audit trail"
       description="Trace the assignments, decisions, approvals, and export evidence linked to the active change dossier."
-      action={
-        data.viewer.roles.includes("auditor") ? (
-          <MutationButton
-            endpoint="/api/v1/exports"
-            label="Generate checksummed bundle"
-            body={{
-              changeEventId: data.change.id,
-              changeEventVersionId: data.change.versionId,
-              retentionMode: "standard",
-            }}
-          />
-        ) : !data.viewer.authenticated ? (
-          <Button asChild variant="outline">
-            <a href="/api/v1/public/walkthrough/audit-export" download>
-              Download public demo bundle
-            </a>
-          </Button>
-        ) : undefined
-      }
+      action={auditAction}
     >
       <div className="grid gap-5">
         <Surface className="overflow-hidden">
@@ -102,7 +117,7 @@ export default async function AuditPage() {
           </ol>
         </Surface>
 
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <section className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_380px]">
           <Surface className="min-w-0 overflow-hidden">
             <SectionTitle
               title="Append-only events"
@@ -162,7 +177,7 @@ export default async function AuditPage() {
             ) : null}
           </Surface>
 
-          <div className="grid h-fit gap-5 xl:sticky xl:top-24">
+          <div className="grid h-fit gap-5 2xl:sticky 2xl:top-24">
             <Surface className="overflow-hidden">
               <SectionTitle
                 title="Stored audit packet"

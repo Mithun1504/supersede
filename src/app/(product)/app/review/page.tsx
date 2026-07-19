@@ -58,6 +58,7 @@ export default async function ReviewPage() {
     >
       <LiveExtractionPanel
         authenticated={data.viewer.authenticated}
+        authenticationAvailable={configuration.workos}
         organizationReady={data.viewer.organizationReady}
         openAiConfigured={configuration.openai}
       />

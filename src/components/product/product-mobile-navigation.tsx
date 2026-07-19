@@ -82,13 +82,17 @@ export function MobileWorkflowMenu({
           <div className="mt-3">
             {viewer?.authenticated ? (
               viewerAction
-            ) : (
+            ) : viewer?.authenticationAvailable ? (
               <Link
                 href="/sign-in?returnTo=/app"
                 className="text-primary focus-visible:ring-ring rounded-sm text-xs font-bold focus-visible:ring-3"
               >
                 Sign in with WorkOS
               </Link>
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                Live sign-in unavailable
+              </p>
             )}
           </div>
         </div>

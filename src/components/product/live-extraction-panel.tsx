@@ -29,10 +29,12 @@ type ExtractionStatus = "idle" | "uploading" | "extracting";
 
 export function LiveExtractionPanel({
   authenticated,
+  authenticationAvailable,
   organizationReady,
   openAiConfigured,
 }: {
   authenticated: boolean;
+  authenticationAvailable: boolean;
   organizationReady: boolean;
   openAiConfigured: boolean;
 }) {
@@ -175,6 +177,7 @@ export function LiveExtractionPanel({
       {!canExtract ? (
         <ExtractionAccessNotice
           authenticated={authenticated && !authExpired}
+          authenticationAvailable={authenticationAvailable}
           organizationReady={organizationReady}
           openAiConfigured={openAiConfigured}
         />
@@ -228,15 +231,20 @@ export function LiveExtractionPanel({
 
 function ExtractionAccessNotice({
   authenticated,
+  authenticationAvailable,
   organizationReady,
   openAiConfigured,
 }: {
   authenticated: boolean;
+  authenticationAvailable: boolean;
   organizationReady: boolean;
   openAiConfigured: boolean;
 }) {
   let message = "Sign in with WorkOS to extract and persist governed claims.";
-  if (authenticated && !organizationReady) {
+  if (!authenticated && !authenticationAvailable) {
+    message =
+      "Live source intake is disabled in this public demo. Review the seeded claims below; no sign-in is required.";
+  } else if (authenticated && !organizationReady) {
     message = "Your WorkOS session is not connected to an organization tenant.";
   } else if (authenticated && organizationReady && !openAiConfigured) {
     message = "Live extraction requires OPENAI_API_KEY on the server.";
@@ -253,7 +261,7 @@ function ExtractionAccessNotice({
           {message}
         </p>
       </div>
-      {!authenticated ? (
+      {!authenticated && authenticationAvailable ? (
         <Button asChild>
           <Link href="/sign-in?returnTo=/app/review">Sign in to continue</Link>
         </Button>

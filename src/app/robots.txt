@@ -1,0 +1,7 @@
+User-Agent: *
+Allow: /
+Disallow: /api/
+Disallow: /auth/
+Disallow: /sign-in
+
+Sitemap: https://supersede-bay.vercel.app/sitemap.xml

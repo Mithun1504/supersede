@@ -86,7 +86,11 @@ export function InteractiveGraph({ items }: { items: GraphItem[] }) {
     <div className="min-w-0">
       <div className="xl:hidden">
         <div className="app-surface overflow-hidden">
-          <GraphToolbar query={query} onQueryChange={setQuery} />
+          <GraphToolbar
+            query={query}
+            onQueryChange={setQuery}
+            matchCount={normalizedQuery ? filteredIds.size : undefined}
+          />
           <MobileGraphPaths
             items={canvasItems}
             query={normalizedQuery}
@@ -104,6 +108,7 @@ export function InteractiveGraph({ items }: { items: GraphItem[] }) {
             <GraphToolbar
               query={query}
               onQueryChange={setQuery}
+              matchCount={normalizedQuery ? filteredIds.size : undefined}
               connectedCount={canvasItems.length}
               showAll={showAll}
               onShowAllChange={setShowAll}
@@ -134,12 +139,14 @@ export function InteractiveGraph({ items }: { items: GraphItem[] }) {
 function GraphToolbar({
   query,
   onQueryChange,
+  matchCount,
   connectedCount,
   showAll,
   onShowAllChange,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
+  matchCount?: number | undefined;
   connectedCount?: number;
   showAll?: boolean;
   onShowAllChange?: (value: boolean) => void;
@@ -153,6 +160,16 @@ function GraphToolbar({
         className="min-w-56 flex-1 sm:max-w-sm"
         aria-label="Find a record in the dependency path"
       />
+      {typeof matchCount === "number" ? (
+        <p
+          className="text-muted-foreground text-xs font-medium"
+          aria-live="polite"
+        >
+          {matchCount === 0
+            ? `No records match “${query.trim()}”.`
+            : `${matchCount} matching ${matchCount === 1 ? "record" : "records"}`}
+        </p>
+      ) : null}
       {onShowAllChange ? (
         <div className="border-border flex shrink-0 border text-xs font-bold">
           <button

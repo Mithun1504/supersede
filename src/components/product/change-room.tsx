@@ -195,11 +195,15 @@ function buildBlockers(input: {
       "unassigned owners",
     ),
   ].filter(Boolean);
+  const impactIssueCount =
+    input.candidateImpacts +
+    input.lowConfidenceImpacts +
+    input.unassignedImpacts;
   if (impactIssues.length > 0) {
     blockers.push({
       step: "04",
       title: "Triage the open impact findings",
-      detail: `${joinList(impactIssues)} remain in the impact review.`,
+      detail: `${joinList(impactIssues)} ${impactIssueCount === 1 ? "remains" : "remain"} in the impact review.`,
       href: "/app/blast-radius",
     });
   }
@@ -281,12 +285,13 @@ function buildWorkflow(input: {
     input.assessmentReviews +
     input.remediationPending +
     input.rechecksPending;
+  const artifactImpacts = input.data.impacts.filter(isArtifactImpact).length;
 
   return [
     {
       step: "01",
       title: "Evidence intake",
-      evidence: `${input.reviewedClaims} of ${input.data.claims.length} claim versions reviewed`,
+      evidence: `${input.reviewedClaims} of ${input.data.claims.length} ${input.data.claims.length === 1 ? "claim version" : "claim versions"} reviewed`,
       state:
         input.reviewedClaims === input.data.claims.length &&
         input.reviewedClaims > 0
@@ -318,7 +323,7 @@ function buildWorkflow(input: {
     {
       step: "03",
       title: "Dependency map",
-      evidence: `${input.data.impacts.length} downstream impact paths recorded`,
+      evidence: `${input.data.impacts.length} downstream impact ${input.data.impacts.length === 1 ? "path" : "paths"} recorded`,
       state: input.data.impacts.length > 0 ? "complete" : "action",
       stateLabel: input.data.impacts.length > 0 ? "Mapped" : "No paths",
       href: "/app/graph",
@@ -326,7 +331,7 @@ function buildWorkflow(input: {
     {
       step: "04",
       title: "Impact review",
-      evidence: `${input.data.impacts.filter(isArtifactImpact).length} artifacts triaged; ${input.openImpactFindings} open findings`,
+      evidence: `${artifactImpacts} ${artifactImpacts === 1 ? "artifact" : "artifacts"} triaged; ${input.openImpactFindings} open ${input.openImpactFindings === 1 ? "finding" : "findings"}`,
       state: input.openImpactFindings === 0 ? "complete" : "action",
       stateLabel:
         input.openImpactFindings === 0 ? "Triaged" : "Needs decisions",
@@ -336,7 +341,7 @@ function buildWorkflow(input: {
       step: "05",
       title: "Decision cases",
       evidence: displace
-        ? `${input.activeCases - input.pendingCases} of ${input.activeCases} active cases approved and locked`
+        ? `${input.activeCases - input.pendingCases} of ${input.activeCases} active ${input.activeCases === 1 ? "case" : "cases"} approved and locked`
         : "Not used in Propagate mode",
       state: !displace
         ? "not-applicable"
@@ -354,7 +359,7 @@ function buildWorkflow(input: {
       step: "06",
       title: "Remediation",
       evidence: displace
-        ? `${input.data.probes.length} assignments; ${outcomeIssues} open work items`
+        ? `${input.data.probes.length} ${input.data.probes.length === 1 ? "assignment" : "assignments"}; ${outcomeIssues} open work ${outcomeIssues === 1 ? "item" : "items"}`
         : "Not used in Propagate mode",
       state: !displace
         ? "not-applicable"

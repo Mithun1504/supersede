@@ -48,10 +48,18 @@ export function ProductSidebar({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col px-3 py-4">
-      <div className="flex h-11 items-center justify-between gap-2 px-1">
+      <div
+        className={cn(
+          "flex h-11 items-center justify-between gap-2 px-1",
+          collapsed && "justify-center",
+        )}
+      >
         <Link
           href="/"
-          className="focus-visible:ring-sidebar-ring flex min-w-0 items-center gap-3 rounded-md px-2 py-1 focus-visible:ring-3"
+          className={cn(
+            "focus-visible:ring-sidebar-ring flex min-w-0 items-center gap-3 rounded-md px-2 py-1 focus-visible:ring-3",
+            collapsed && "sr-only",
+          )}
           aria-label={collapsed ? "Supersede home" : undefined}
         >
           <ProductMark className="text-sidebar-primary shrink-0" />
@@ -160,7 +168,11 @@ function SidebarLink({
         )}
         aria-hidden="true"
       >
-        {item.key === utilityNav.key ? "G" : formatWorkflowStep(item.step)}
+        {collapsed
+          ? item.shortLabel.slice(0, 2).toUpperCase()
+          : item.key === utilityNav.key
+            ? "G"
+            : formatWorkflowStep(item.step)}
       </span>
       <span className={cn("min-w-0 flex-1 truncate", collapsed && "sr-only")}>
         {item.label}
@@ -240,10 +252,12 @@ function AccountMenu({
           <DropdownMenuItem className="p-0">
             <div className="w-full px-2 py-1.5">{viewerAction}</div>
           </DropdownMenuItem>
-        ) : (
+        ) : viewer?.authenticationAvailable ? (
           <DropdownMenuItem asChild>
             <Link href="/sign-in?returnTo=/app">Sign in with WorkOS</Link>
           </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem disabled>Live sign-in unavailable</DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
