@@ -89,6 +89,7 @@ type BundleFile = {
 export type AuditExportBundle = {
   bytes: Uint8Array;
   filename: string;
+  sha256: string;
   manifest: {
     schemaVersion: 1;
     changeReference: string;
@@ -242,7 +243,9 @@ async function renderReport(input: AuditExportInput): Promise<Uint8Array> {
   document.setTitle(`Supersede audit · ${input.changeReference}`);
   document.setSubject("Observable workflow audit export");
   document.setProducer(`Supersede ${input.releaseSha}`);
+  document.setCreator("Supersede");
   document.setCreationDate(new Date(input.generatedAt));
+  document.setModificationDate(new Date(input.generatedAt));
   return document.save({ useObjectStreams: true });
 }
 
@@ -288,15 +291,23 @@ export async function buildAuditExportBundle(
   }
 
   const zip = new JSZip();
-  for (const file of files) zip.file(file.path, Buffer.from(file.bytes));
-  zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+  const archiveDate = new Date(input.generatedAt);
+  for (const file of files) {
+    zip.file(file.path, Buffer.from(file.bytes), { date: archiveDate });
+  }
+  zip.file("manifest.json", JSON.stringify(manifest, null, 2), {
+    date: archiveDate,
+  });
+
+  const bytes = await zip.generateAsync({
+    type: "uint8array",
+    compression: "DEFLATE",
+  });
 
   return {
-    bytes: await zip.generateAsync({
-      type: "uint8array",
-      compression: "DEFLATE",
-    }),
+    bytes,
     filename: `supersede-audit-${input.changeReference.toLowerCase()}.zip`,
+    sha256: sha256(bytes),
     manifest,
   };
 }

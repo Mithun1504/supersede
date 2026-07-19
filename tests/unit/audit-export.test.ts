@@ -63,6 +63,14 @@ describe("buildAuditExportBundle", () => {
     ).resolves.toContain("change_validated");
   });
 
+  it("rebuilds the same locked bundle byte for byte", async () => {
+    const first = await buildAuditExportBundle(input);
+    const second = await buildAuditExportBundle(input);
+
+    expect(second.bytes).toEqual(first.bytes);
+    expect(second.sha256).toBe(first.sha256);
+  });
+
   it("rejects prohibited mental-state claims in report actions", async () => {
     await expect(
       buildAuditExportBundle({

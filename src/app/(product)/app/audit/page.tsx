@@ -4,6 +4,7 @@ import { SectionTitle, Surface } from "@/components/product/product-shell";
 import { MutationButton } from "@/components/product/governed-actions";
 import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
 import { Button } from "@/components/ui/button";
+import { getPublicWalkthroughAuditBundle } from "@/modules/audit";
 import { getProductWorkspace } from "@/modules/product";
 
 export const metadata: Metadata = { title: "Audit trail" };
@@ -25,6 +26,15 @@ function formatToken(value: string) {
 export default async function AuditPage() {
   const data = await getProductWorkspace();
   const latestReport = data.reports[0];
+  const publicBundle = data.viewer.authenticated
+    ? undefined
+    : await getPublicWalkthroughAuditBundle();
+  const displayedCutoff =
+    publicBundle?.manifest.cutoffAt ?? latestReport?.cutoffAt;
+  const displayedLockedAt =
+    publicBundle?.manifest.generatedAt ?? latestReport?.lockedAt;
+  const displayedChecksum = publicBundle?.sha256 ?? latestReport?.sha256;
+  const displayedBundle = publicBundle?.filename ?? latestReport?.id;
   const learners = [
     ...new Map(data.probes.map((probe) => [probe.personId, probe])).values(),
   ];
@@ -181,40 +191,40 @@ export default async function AuditPage() {
             <Surface className="overflow-hidden">
               <SectionTitle
                 title="Stored audit packet"
-                detail="Verification evidence from the latest generated report bundle."
+                detail="Verification evidence for the downloadable report bundle."
               />
               <dl className="divide-border divide-y px-5">
                 <Verification
                   label="Report cutoff"
                   value={
-                    latestReport
-                      ? formatDateTime(latestReport.cutoffAt)
+                    displayedCutoff
+                      ? formatDateTime(displayedCutoff)
                       : "No stored bundle"
                   }
                 />
                 <Verification
                   label="Locked"
                   value={
-                    latestReport
-                      ? formatDateTime(latestReport.lockedAt)
+                    displayedLockedAt
+                      ? formatDateTime(displayedLockedAt)
                       : "Not available"
                   }
                 />
                 <Verification
                   label="SHA-256 checksum"
-                  value={latestReport?.sha256 ?? "Not available"}
+                  value={displayedChecksum ?? "Not available"}
                   mono
                 />
                 <Verification
                   label="Report bundle"
-                  value={latestReport?.id ?? "Not available"}
+                  value={displayedBundle ?? "Not available"}
                   mono
                 />
               </dl>
               <p className="text-muted-foreground border-border border-t px-5 py-4 text-xs leading-5">
-                Retention mode is not exposed by this workspace view. Verify the
-                bundle manifest before release. The download above is generated
-                from public demo data using standard storage, not WORM.
+                The checksum above covers the downloaded ZIP; its manifest
+                verifies each included file. This public demo uses standard
+                storage, not WORM.
               </p>
             </Surface>
 

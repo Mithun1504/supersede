@@ -23,3 +23,4 @@ export {
   type ReportGenerationRequest,
 } from "@/modules/audit/generation";
 export { buildAuditReportInput } from "@/modules/audit/generation-evidence";
+export { getPublicWalkthroughAuditBundle } from "@/modules/audit/public-walkthrough-export";

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type APIResponse, type Page } from "@playwright/test";
 
@@ -163,6 +165,35 @@ test("unconfigured sign-in renders a public-demo page instead of problem JSON", 
     .analyze();
   expect(accessibility.violations).toEqual([]);
   expect(contentSecurityPolicyErrors).toEqual([]);
+
+  const callbackResponse = await page.goto("/auth/callback");
+  expect(callbackResponse?.status()).toBe(200);
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await expect(
+    page.getByRole("heading", {
+      name: "Live sign-in is unavailable in this demo",
+    }),
+  ).toBeVisible();
+});
+
+test("public audit bundle is locked, reproducible, and checksummed in the UI", async ({
+  page,
+  request,
+}) => {
+  const first = await request.get("/api/v1/public/walkthrough/audit-export");
+  const second = await request.get("/api/v1/public/walkthrough/audit-export");
+  const firstBytes = await first.body();
+  const secondBytes = await second.body();
+  const digest = createHash("sha256").update(firstBytes).digest("hex");
+
+  expect(first.status()).toBe(200);
+  expect(second.status()).toBe(200);
+  expect(secondBytes).toEqual(firstBytes);
+  expect(first.headers()["x-supersede-bundle-sha256"]).toBe(digest);
+  expect(second.headers()["x-supersede-bundle-sha256"]).toBe(digest);
+
+  await page.goto("/app/audit");
+  await expect(page.getByText(digest, { exact: true })).toBeVisible();
 });
 
 test("crawler metadata is available", async ({ request }) => {
