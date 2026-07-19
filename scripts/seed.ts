@@ -202,25 +202,42 @@ async function seed() {
     .values(roleSeed.map(([code, description]) => ({ code, description })))
     .onConflictDoNothing();
 
-  const [organization] = await database
-    .insert(organizations)
-    .values({
-      name: "St. Marlowe Medical Center",
-      workosOrganizationId: "org_demo_supersede",
-      configuration: "displace",
-      individualResultsVisible: true,
-      publicWalkthroughEnabled: true,
-    })
-    .onConflictDoUpdate({
-      target: organizations.workosOrganizationId,
-      set: {
-        name: "St. Marlowe Medical Center",
-        configuration: "displace",
-        individualResultsVisible: true,
-        publicWalkthroughEnabled: true,
-      },
-    })
-    .returning();
+  const workosOrganizationId =
+    process.env.WORKOS_DEMO_ORGANIZATION_ID?.trim() || "org_demo_supersede";
+  const [configuredOrganization] = await database
+    .select()
+    .from(organizations)
+    .where(eq(organizations.workosOrganizationId, workosOrganizationId))
+    .limit(1);
+  const [existingWalkthrough] = configuredOrganization
+    ? [configuredOrganization]
+    : await database
+        .select()
+        .from(organizations)
+        .where(
+          and(
+            eq(organizations.name, "St. Marlowe Medical Center"),
+            eq(organizations.publicWalkthroughEnabled, true),
+          ),
+        )
+        .limit(1);
+  const organizationValues = {
+    name: "St. Marlowe Medical Center",
+    workosOrganizationId,
+    configuration: "displace" as const,
+    individualResultsVisible: true,
+    publicWalkthroughEnabled: true,
+  };
+  const [organization] = existingWalkthrough
+    ? await database
+        .update(organizations)
+        .set(organizationValues)
+        .where(eq(organizations.id, existingWalkthrough.id))
+        .returning()
+    : await database
+        .insert(organizations)
+        .values(organizationValues)
+        .returning();
 
   if (!organization) throw new Error("Failed to seed organization.");
 

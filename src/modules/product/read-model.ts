@@ -964,6 +964,8 @@ async function resolveWorkspaceTenant(
       tenant: await resolveActorContext({
         workosOrganizationId: auth.workosOrganizationId,
         workosUserId: auth.workosUserId,
+        email: auth.email,
+        displayName: auth.displayName,
       }),
     };
   } catch (error) {

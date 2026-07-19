@@ -98,6 +98,49 @@ test("an authenticated user without a mapped tenant gets the public workspace", 
   }
 });
 
+test("a verified member of the walkthrough organization gets a governed workspace", async ({
+  browser,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Shared server path.");
+  const context = await browser.newContext({
+    extraHTTPHeaders: {
+      "x-supersede-e2e-key": authSecret,
+      "x-supersede-e2e-user": "user_new_walkthrough_member",
+      "x-supersede-e2e-organization": "org_demo_supersede",
+      "x-supersede-e2e-name": "New walkthrough member",
+    },
+  });
+  const page = await context.newPage();
+
+  try {
+    await page.goto("/app/audit");
+    await expect(page.getByText("Governed workspace").first()).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Generate checksummed bundle" }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: /New walkthrough member/i }).click();
+    await expect(
+      page.getByRole("menu").getByText("St. Marlowe Medical Center"),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toBeHidden();
+
+    await page.goto("/app/review");
+    const health = await page.request.get("/api/v1/health");
+    const configuration = (await health.json()) as {
+      configuration: { openai: boolean };
+    };
+    if (configuration.configuration.openai) {
+      await expect(page.getByLabel("Source text")).toBeEnabled();
+      await expect(
+        page.getByText(/not connected to an organization/i),
+      ).toHaveCount(0);
+    }
+  } finally {
+    await context.close();
+  }
+});
+
 test("the sign-out recovery route returns to the workspace", async ({
   request,
 }) => {

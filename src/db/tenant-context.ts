@@ -15,18 +15,37 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export async function resolveActorContext({
   workosOrganizationId,
   workosUserId,
+  email,
+  displayName,
 }: {
   workosOrganizationId: string;
   workosUserId: string;
+  email: string;
+  displayName: string;
 }): Promise<TenantContext> {
-  const result = await getDatabase().execute<{
+  const database = getDatabase();
+  const existing = await database.execute<{
     organization_id: string;
     membership_id: string;
   }>(
     sql`select * from app.resolve_actor(${workosOrganizationId}, ${workosUserId})`,
   );
 
-  const actor = result.rows[0];
+  const actor =
+    existing.rows[0] ??
+    (
+      await database.execute<{
+        organization_id: string;
+        membership_id: string;
+      }>(sql`
+        select * from app.provision_walkthrough_actor(
+          ${workosOrganizationId},
+          ${workosUserId},
+          ${email},
+          ${displayName}
+        )
+      `)
+    ).rows[0];
 
   if (!actor) {
     throw new AppError({

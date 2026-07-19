@@ -29,6 +29,8 @@ export async function requireTenantActor() {
   const tenant = await resolveActorContext({
     workosOrganizationId: auth.workosOrganizationId,
     workosUserId: auth.workosUserId,
+    email: auth.email,
+    displayName: auth.displayName,
   });
   return { auth, tenant };
 }

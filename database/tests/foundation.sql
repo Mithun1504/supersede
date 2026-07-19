@@ -15,6 +15,8 @@ DECLARE
   case_author_id uuid := gen_random_uuid();
   case_approver_id uuid := gen_random_uuid();
   release_id uuid := gen_random_uuid();
+  walkthrough_org_id uuid := gen_random_uuid();
+  walkthrough_member_id uuid;
   source_id uuid := gen_random_uuid();
   old_source_version_id uuid := gen_random_uuid();
   new_source_version_id uuid := gen_random_uuid();
@@ -30,6 +32,7 @@ DECLARE
   person_id uuid := gen_random_uuid();
   probe_assignment_id uuid := gen_random_uuid();
   claimed_rechecks integer;
+  walkthrough_role_count integer;
 BEGIN
   SELECT count(*)
   INTO policy_count
@@ -268,6 +271,68 @@ BEGIN
       AND NOT pg_proc.prosecdef
   ) THEN
     RAISE EXCEPTION 'scheduler functions must be SECURITY DEFINER';
+  END IF;
+
+  IF NOT has_function_privilege(
+    'supersede_app',
+    'app.provision_walkthrough_actor(text, text, text, text)',
+    'EXECUTE'
+  ) OR EXISTS (
+    SELECT 1
+    FROM pg_proc
+    JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
+    WHERE pg_namespace.nspname = 'app'
+      AND pg_proc.proname = 'provision_walkthrough_actor'
+      AND NOT pg_proc.prosecdef
+  ) THEN
+    RAISE EXCEPTION 'walkthrough provisioning function is not secured for runtime use';
+  END IF;
+
+  INSERT INTO organization (
+    id,
+    workos_organization_id,
+    name,
+    product_configuration,
+    individual_results_visible,
+    public_walkthrough_enabled
+  ) VALUES (
+    walkthrough_org_id,
+    'org_test_walkthrough',
+    'Walkthrough Provisioning Test',
+    'displace',
+    true,
+    true
+  );
+
+  SELECT membership_id
+  INTO walkthrough_member_id
+  FROM app.provision_walkthrough_actor(
+    'org_test_walkthrough',
+    'user_test_walkthrough',
+    'judge@example.test',
+    'Hackathon Judge'
+  );
+
+  SELECT count(*)
+  INTO walkthrough_role_count
+  FROM membership_role
+  WHERE organization_id = walkthrough_org_id
+    AND membership_id = walkthrough_member_id;
+
+  IF walkthrough_member_id IS NULL OR walkthrough_role_count <> 6 THEN
+    RAISE EXCEPTION 'walkthrough actor was not provisioned with demo workflow roles';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM app.provision_walkthrough_actor(
+      'org_not_bound',
+      'user_not_bound',
+      'unknown@example.test',
+      'Unknown User'
+    )
+  ) THEN
+    RAISE EXCEPTION 'unbound organizations must not provision walkthrough actors';
   END IF;
 
   INSERT INTO organization (
