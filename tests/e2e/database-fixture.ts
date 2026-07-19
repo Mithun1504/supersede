@@ -59,9 +59,15 @@ export async function createE2eDatabase() {
     env: environment,
     stdio: "inherit",
   });
-  execFileSync(
-    "node",
-    ["--conditions=react-server", "--import", "tsx", "scripts/seed.ts"],
-    { cwd: process.cwd(), env: environment, stdio: "inherit" },
-  );
+  for (const seedMode of ["public", "sandbox"] as const) {
+    execFileSync(
+      "node",
+      ["--conditions=react-server", "--import", "tsx", "scripts/seed.ts"],
+      {
+        cwd: process.cwd(),
+        env: { ...environment, SEED_ORGANIZATION_MODE: seedMode },
+        stdio: "inherit",
+      },
+    );
+  }
 }

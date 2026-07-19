@@ -36,6 +36,9 @@ export const organizations = pgTable(
     publicWalkthroughEnabled: boolean("public_walkthrough_enabled")
       .notNull()
       .default(false),
+    walkthroughProvisioningEnabled: boolean("walkthrough_provisioning_enabled")
+      .notNull()
+      .default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

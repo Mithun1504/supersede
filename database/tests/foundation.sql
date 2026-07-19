@@ -16,6 +16,7 @@ DECLARE
   case_approver_id uuid := gen_random_uuid();
   release_id uuid := gen_random_uuid();
   walkthrough_org_id uuid := gen_random_uuid();
+  public_walkthrough_org_id uuid := gen_random_uuid();
   walkthrough_member_id uuid;
   source_id uuid := gen_random_uuid();
   old_source_version_id uuid := gen_random_uuid();
@@ -294,13 +295,15 @@ BEGIN
     name,
     product_configuration,
     individual_results_visible,
-    public_walkthrough_enabled
+    public_walkthrough_enabled,
+    walkthrough_provisioning_enabled
   ) VALUES (
     walkthrough_org_id,
     'org_test_walkthrough',
     'Walkthrough Provisioning Test',
     'displace',
     true,
+    false,
     true
   );
 
@@ -321,6 +324,34 @@ BEGIN
 
   IF walkthrough_member_id IS NULL OR walkthrough_role_count <> 6 THEN
     RAISE EXCEPTION 'walkthrough actor was not provisioned with demo workflow roles';
+  END IF;
+
+  INSERT INTO organization (
+    id,
+    workos_organization_id,
+    name,
+    product_configuration,
+    individual_results_visible,
+    public_walkthrough_enabled
+  ) VALUES (
+    public_walkthrough_org_id,
+    'org_test_public_walkthrough',
+    'Public Walkthrough Test',
+    'displace',
+    true,
+    true
+  );
+
+  IF EXISTS (
+    SELECT 1
+    FROM app.provision_walkthrough_actor(
+      'org_test_public_walkthrough',
+      'user_test_public_walkthrough',
+      'public@example.test',
+      'Public User'
+    )
+  ) THEN
+    RAISE EXCEPTION 'public walkthrough organizations must not auto-provision actors';
   END IF;
 
   IF EXISTS (

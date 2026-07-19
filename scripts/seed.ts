@@ -80,6 +80,9 @@ const professionalRoleSeed = [
   ["hospitalist", "Hospitalist", "Oversees fictional inpatient decisions."],
 ] as const;
 
+const walkthroughLockedAt = new Date("2026-07-15T10:02:00.000Z");
+const walkthroughDueAt = new Date("2026-07-22T10:02:00.000Z");
+
 function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -202,37 +205,36 @@ async function seed() {
     .values(roleSeed.map(([code, description]) => ({ code, description })))
     .onConflictDoNothing();
 
-  const workosOrganizationId =
-    process.env.WORKOS_DEMO_ORGANIZATION_ID?.trim() || "org_demo_supersede";
+  const seedMode = process.env.SEED_ORGANIZATION_MODE ?? "public";
+  if (seedMode !== "public" && seedMode !== "sandbox") {
+    throw new Error(
+      "SEED_ORGANIZATION_MODE must be either 'public' or 'sandbox'.",
+    );
+  }
+  const isPublicWalkthrough = seedMode === "public";
+  const workosOrganizationId = isPublicWalkthrough
+    ? "org_public_supersede"
+    : process.env.WORKOS_DEMO_ORGANIZATION_ID?.trim() || "org_demo_supersede";
   const [configuredOrganization] = await database
     .select()
     .from(organizations)
     .where(eq(organizations.workosOrganizationId, workosOrganizationId))
     .limit(1);
-  const [existingWalkthrough] = configuredOrganization
-    ? [configuredOrganization]
-    : await database
-        .select()
-        .from(organizations)
-        .where(
-          and(
-            eq(organizations.name, "St. Marlowe Medical Center"),
-            eq(organizations.publicWalkthroughEnabled, true),
-          ),
-        )
-        .limit(1);
   const organizationValues = {
-    name: "St. Marlowe Medical Center",
+    name: isPublicWalkthrough
+      ? "St. Marlowe Medical Center"
+      : "St. Marlowe Demo Sandbox",
     workosOrganizationId,
     configuration: "displace" as const,
     individualResultsVisible: true,
-    publicWalkthroughEnabled: true,
+    publicWalkthroughEnabled: isPublicWalkthrough,
+    walkthroughProvisioningEnabled: !isPublicWalkthrough,
   };
-  const [organization] = existingWalkthrough
+  const [organization] = configuredOrganization
     ? await database
         .update(organizations)
         .set(organizationValues)
-        .where(eq(organizations.id, existingWalkthrough.id))
+        .where(eq(organizations.id, configuredOrganization.id))
         .returning()
     : await database
         .insert(organizations)
@@ -378,7 +380,7 @@ async function seed() {
         effectiveDate: "2025-01-01",
         fileSha256: sha256("old anticoag threshold"),
         summary: "Treat fictional cohort when marker is at least 52.",
-        lockedAt: new Date(),
+        lockedAt: walkthroughLockedAt,
         lockedByMembershipId: actorIds.get("validator"),
       },
       {
@@ -389,7 +391,7 @@ async function seed() {
         effectiveDate: "2026-07-01",
         fileSha256: sha256("new anticoag threshold"),
         summary: "Hold treatment unless marker is at least 68.",
-        lockedAt: new Date(),
+        lockedAt: walkthroughLockedAt,
         lockedByMembershipId: actorIds.get("validator"),
       },
     ])
@@ -466,7 +468,7 @@ async function seed() {
         versionLabel: "v1",
         bodyText: protocolText,
         fileSha256: sha256(protocolText),
-        lockedAt: new Date(),
+        lockedAt: walkthroughLockedAt,
         lockedByMembershipId: actorIds.get("edge-reviewer"),
       },
       {
@@ -476,7 +478,7 @@ async function seed() {
         bodyText:
           "Remember the older marker threshold during urgent bedside reviews.",
         fileSha256: sha256("cme"),
-        lockedAt: new Date(),
+        lockedAt: walkthroughLockedAt,
         lockedByMembershipId: actorIds.get("edge-reviewer"),
       },
       {
@@ -486,7 +488,7 @@ async function seed() {
         bodyText:
           "Before ICU transfer, verify whether P-114 anticoagulation criteria still apply.",
         fileSha256: sha256("transfer-protocol"),
-        lockedAt: new Date(),
+        lockedAt: walkthroughLockedAt,
         lockedByMembershipId: actorIds.get("edge-reviewer"),
       },
       {
@@ -496,7 +498,7 @@ async function seed() {
         bodyText:
           "Hold anticoagulation if exclusion criteria apply or the active threshold is not met.",
         fileSha256: sha256("dose-hold-protocol"),
-        lockedAt: new Date(),
+        lockedAt: walkthroughLockedAt,
         lockedByMembershipId: actorIds.get("edge-reviewer"),
       },
       {
@@ -506,7 +508,7 @@ async function seed() {
         bodyText:
           "Claim: threshold-based anticoagulation reduces fictional delays.",
         fileSha256: sha256("claim-sheet"),
-        lockedAt: new Date(),
+        lockedAt: walkthroughLockedAt,
         lockedByMembershipId: actorIds.get("edge-reviewer"),
       },
     ])
@@ -565,7 +567,7 @@ async function seed() {
       loadBearingRationale: "The protocol action depends on this threshold.",
       reviewStatus: "reviewed",
       reviewedByMembershipId: actorIds.get("edge-reviewer"),
-      lockedAt: new Date(),
+      lockedAt: walkthroughLockedAt,
       lockedByMembershipId: actorIds.get("edge-reviewer"),
     })
     .returning();
@@ -604,7 +606,7 @@ async function seed() {
       confidence: "0.910",
       reviewStatus: "reviewed",
       reviewedByMembershipId: actorIds.get("edge-reviewer"),
-      lockedAt: new Date(),
+      lockedAt: walkthroughLockedAt,
       lockedByMembershipId: actorIds.get("edge-reviewer"),
     })
     .returning();
@@ -655,7 +657,7 @@ async function seed() {
       sourceId: sourceRow.id,
       enteredByMembershipId: actorIds.get("change-owner")!,
       validatedByMembershipId: actorIds.get("validator"),
-      validatedAt: new Date(),
+      validatedAt: walkthroughLockedAt,
     })
     .returning();
   const changeRow = must(change, "change event");
@@ -672,7 +674,7 @@ async function seed() {
       newRule: "Hold treatment unless marker is at least 68.",
       affectedPopulation: "Fictional ICU anticoagulation protocol users.",
       diffSummary: { oldThreshold: 52, newThreshold: 68 },
-      lockedAt: new Date(),
+      lockedAt: walkthroughLockedAt,
       lockedByMembershipId: actorIds.get("validator"),
     })
     .returning();
@@ -780,8 +782,8 @@ async function seed() {
         status: "approved",
         authoredByMembershipId: actorIds.get("change-owner")!,
         approvedByMembershipId: actorIds.get("case-approver"),
-        approvedAt: new Date(),
-        lockedAt: new Date(),
+        approvedAt: walkthroughLockedAt,
+        lockedAt: walkthroughLockedAt,
         lockedByMembershipId: actorIds.get("case-approver"),
       },
       {
@@ -856,7 +858,7 @@ async function seed() {
       caseVersionId: caseVersionRow.id,
       changeEventVersionId: changeVersionRow.id,
       assignedByMembershipId: actorIds.get("release"),
-      dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      dueAt: walkthroughDueAt,
     })
     .returning();
   const assignmentRow = must(assignment, "probe assignment");
@@ -905,7 +907,7 @@ async function seed() {
       probeResponseId: responseRow.id,
       artifactVersionId: protocolVersionRow.id,
       status: "passed",
-      completedAt: new Date(),
+      completedAt: walkthroughLockedAt,
     })
     .returning();
   const remediationRow = must(remediation, "remediation assignment");
@@ -935,7 +937,7 @@ async function seed() {
         caseVersionId: caseVersionRow.id,
         changeEventVersionId: changeVersionRow.id,
         assignedByMembershipId: actorIds.get("release"),
-        dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        dueAt: walkthroughDueAt,
       })
       .returning();
     const assignment = must(
@@ -997,6 +999,7 @@ async function seed() {
       objectId: changeRow.id,
       objectVersionId: changeVersionRow.id,
       action: "change_validated",
+      createdAt: walkthroughLockedAt,
     },
     {
       organizationId: organization.id,
@@ -1006,6 +1009,7 @@ async function seed() {
       objectId: edgeRow.id,
       objectVersionId: edgeVersionRow.id,
       action: "edge_accepted",
+      createdAt: walkthroughLockedAt,
     },
     {
       organizationId: organization.id,
@@ -1015,6 +1019,7 @@ async function seed() {
       objectId: divergenceCaseRow.id,
       objectVersionId: caseVersionRow.id,
       action: "case_approved",
+      createdAt: walkthroughLockedAt,
     },
   ]);
 
@@ -1027,6 +1032,7 @@ async function seed() {
     objectId: changeRow.id,
     objectVersionId: changeVersionRow.id,
     payload: { source: "seed" },
+    occurredAt: walkthroughLockedAt,
   });
 
   await database.insert(auditEvents).values({
@@ -1038,6 +1044,7 @@ async function seed() {
     objectId: changeRow.id,
     objectVersionId: changeVersionRow.id,
     payload: { assigned: 1, assessed: 1, remediated: 1, recheck: "scheduled" },
+    occurredAt: walkthroughLockedAt,
   });
 
   await database.insert(reportBundles).values({
@@ -1055,7 +1062,9 @@ async function seed() {
         claimSheetVersionRow.id,
       ],
     },
-    cutoffAt: new Date(),
+    cutoffAt: walkthroughLockedAt,
+    lockedAt: walkthroughLockedAt,
+    createdAt: walkthroughLockedAt,
   });
 
   await database.insert(workflowRuns).values({
@@ -1067,8 +1076,8 @@ async function seed() {
     status: "completed",
     progressCurrent: 5,
     progressTotal: 5,
-    startedAt: new Date(),
-    completedAt: new Date(),
+    startedAt: walkthroughLockedAt,
+    completedAt: walkthroughLockedAt,
   });
 
   await database.insert(outboxEvents).values({
@@ -1080,14 +1089,14 @@ async function seed() {
     payload: { changeEventVersionId: changeVersionRow.id, impactCount: 5 },
     status: "published",
     attempts: 1,
-    publishedAt: new Date(),
+    publishedAt: walkthroughLockedAt,
   });
 
   await database.insert(apiRateLimitBuckets).values({
     organizationId: organization.id,
     actorMembershipId: actorIds.get("auditor")!,
     scope: "audit-export",
-    windowStartedAt: new Date(),
+    windowStartedAt: walkthroughLockedAt,
     requestCount: 1,
   });
 

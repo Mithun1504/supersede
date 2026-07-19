@@ -64,7 +64,7 @@ test("public walkthrough is visibly seeded and read-only", async ({ page }) => {
   ).toHaveCount(0);
 });
 
-test("an authenticated user without a mapped tenant gets the public workspace", async ({
+test("an authenticated user outside the sandbox gets the public workspace", async ({
   browser,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "Shared server path.");
@@ -120,7 +120,7 @@ test("a verified member of the walkthrough organization gets a governed workspac
     ).toBeEnabled();
     await page.getByRole("button", { name: /New walkthrough member/i }).click();
     await expect(
-      page.getByRole("menu").getByText("St. Marlowe Medical Center"),
+      page.getByRole("menu").getByText("St. Marlowe Demo Sandbox"),
     ).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("menu")).toBeHidden();

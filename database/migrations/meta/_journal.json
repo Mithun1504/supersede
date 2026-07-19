@@ -113,6 +113,13 @@
       "when": 1784483936157,
       "tag": "0015_provision_walkthrough_actor",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1784487416235,
+      "tag": "0016_isolate_public_walkthrough",
+      "breakpoints": true
     }
   ]
 }
