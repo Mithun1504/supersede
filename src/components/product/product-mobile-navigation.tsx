@@ -38,6 +38,8 @@ export function MobileWorkflowMenu({
   viewerAction: React.ReactNode;
   workspace: ProductShellWorkspace;
 }) {
+  const governed = Boolean(viewer?.authenticated && viewer.organizationReady);
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -77,7 +79,7 @@ export function MobileWorkflowMenu({
             {viewer?.displayName ?? "Public walkthrough"}
           </p>
           <p className="text-muted-foreground mt-1 text-xs">
-            {viewer?.authenticated ? "Governed workspace" : "Public, read-only"}
+            {governed ? "Governed workspace" : "Public, read-only"}
           </p>
           <div className="mt-3">
             {viewer?.authenticated ? (

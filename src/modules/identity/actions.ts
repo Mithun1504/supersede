@@ -2,12 +2,12 @@
 
 import { signOut } from "@workos-inc/authkit-nextjs";
 
-import { isWorkOSConfigured } from "@/lib/env/server";
-import { requireAuthContext } from "@/modules/identity/auth";
+import { getServerEnv, isWorkOSConfigured } from "@/lib/env/server";
 
 export async function signOutAction() {
   if (isWorkOSConfigured()) {
-    await requireAuthContext();
-    await signOut();
+    await signOut({
+      returnTo: new URL("/app", getServerEnv().NEXT_PUBLIC_APP_URL).toString(),
+    });
   }
 }

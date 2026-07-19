@@ -123,6 +123,8 @@ function ProductTopbar({
   viewerAction: React.ReactNode;
   workspace: ProductShellWorkspace;
 }) {
+  const governed = Boolean(viewer?.authenticated && viewer.organizationReady);
+
   return (
     <header className="border-border bg-background sticky top-0 z-40 border-b">
       <div className="flex min-h-14 items-center gap-3 px-4 sm:px-6 lg:px-10">
@@ -142,9 +144,9 @@ function ProductTopbar({
           </p>
         </div>
         <span className="text-muted-foreground hidden text-xs sm:inline">
-          {viewer?.authenticated ? "Governed workspace" : "Public, read-only"}
+          {governed ? "Governed workspace" : "Public, read-only"}
         </span>
-        <RealtimeRefresh authenticated={viewer?.authenticated ?? false} />
+        <RealtimeRefresh authenticated={governed} />
         <ThemeToggle />
       </div>
     </header>

@@ -25,8 +25,9 @@ function formatToken(value: string) {
 
 export default async function AuditPage() {
   const data = await getProductWorkspace();
+  const governed = data.viewer.authenticated && data.viewer.organizationReady;
   const latestReport = data.reports[0];
-  const publicBundle = data.viewer.authenticated
+  const publicBundle = governed
     ? undefined
     : await getPublicWalkthroughAuditBundle();
   const displayedCutoff =
@@ -61,7 +62,7 @@ export default async function AuditPage() {
       "different-case completions",
     ],
   ] as const;
-  const auditAction = data.viewer.authenticated ? (
+  const auditAction = governed ? (
     data.viewer.roles.includes("auditor") ? (
       <MutationButton
         endpoint="/api/v1/exports"

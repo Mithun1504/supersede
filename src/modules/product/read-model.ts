@@ -921,12 +921,7 @@ async function loadWorkspace(
 export const getProductWorkspace = cache(
   async (): Promise<ProductWorkspace> => {
     const auth = await getOptionalAuthContext();
-    const tenant = auth?.workosOrganizationId
-      ? await resolveActorContext({
-          workosOrganizationId: auth.workosOrganizationId,
-          workosUserId: auth.workosUserId,
-        })
-      : await resolvePublicWalkthroughContext();
+    const { organizationReady, tenant } = await resolveWorkspaceTenant(auth);
 
     const workspace = await withTenantContext(tenant, (transaction) =>
       loadWorkspace(transaction, tenant.organizationId),
@@ -938,7 +933,7 @@ export const getProductWorkspace = cache(
         membershipId: tenant.actorMembershipId,
         displayName: auth?.displayName ?? "Public walkthrough",
         authenticated: Boolean(auth),
-        organizationReady: Boolean(auth?.workosOrganizationId),
+        organizationReady,
         roles: await withTenantContext(tenant, async (transaction) => {
           const result = await transaction.execute<{ roleCode: string }>(sql`
           select role_code as "roleCode" from membership_role
@@ -952,3 +947,33 @@ export const getProductWorkspace = cache(
     };
   },
 );
+
+async function resolveWorkspaceTenant(
+  auth: Awaited<ReturnType<typeof getOptionalAuthContext>>,
+) {
+  if (!auth?.workosOrganizationId) {
+    return {
+      organizationReady: false,
+      tenant: await resolvePublicWalkthroughContext(),
+    };
+  }
+
+  try {
+    return {
+      organizationReady: true,
+      tenant: await resolveActorContext({
+        workosOrganizationId: auth.workosOrganizationId,
+        workosUserId: auth.workosUserId,
+      }),
+    };
+  } catch (error) {
+    if (!(error instanceof AppError) || error.code !== "FORBIDDEN") {
+      throw error;
+    }
+
+    return {
+      organizationReady: false,
+      tenant: await resolvePublicWalkthroughContext(),
+    };
+  }
+}

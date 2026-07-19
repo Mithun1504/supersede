@@ -29,7 +29,14 @@ export default function ProductError({
         changeReference: "Unavailable",
         reviewCount: 0,
       }}
-      action={<Button onClick={reset}>Try again</Button>}
+      action={
+        <div className="flex gap-2">
+          <Button onClick={reset}>Try again</Button>
+          <Button asChild variant="outline">
+            <a href="/sign-out">Sign out</a>
+          </Button>
+        </div>
+      }
     >
       <ErrorNotice
         title="Rendering failed"

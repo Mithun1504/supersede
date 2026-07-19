@@ -16,6 +16,8 @@ const publicRoutes = [
   ["/app/walkthrough", "Demo guide"],
 ] as const;
 
+const authSecret = process.env.E2E_AUTH_SECRET ?? "supersede-e2e-local-secret";
+
 test.describe("public release surfaces", () => {
   for (const [path, heading] of publicRoutes) {
     test(`${path} renders accessibly without viewport overflow`, async ({
@@ -60,6 +62,50 @@ test("public walkthrough is visibly seeded and read-only", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: /role|persona|impersonat/i }),
   ).toHaveCount(0);
+});
+
+test("an authenticated user without a mapped tenant gets the public workspace", async ({
+  browser,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Shared server path.");
+  const context = await browser.newContext({
+    extraHTTPHeaders: {
+      "x-supersede-e2e-key": authSecret,
+      "x-supersede-e2e-user": "user_unmapped_hackathon_judge",
+      "x-supersede-e2e-organization": "org_unmapped_hackathon_judge",
+      "x-supersede-e2e-name": "Hackathon judge",
+    },
+  });
+  const page = await context.newPage();
+
+  try {
+    for (const [path, heading] of publicRoutes.filter(([path]) =>
+      path.startsWith("/app"),
+    )) {
+      const response = await page.goto(path);
+
+      expect(response?.status()).toBe(200);
+      await expect(
+        page.getByRole("heading", { name: heading, level: 1 }),
+      ).toBeVisible();
+      await expect(page.getByText("Public, read-only").first()).toBeVisible();
+    }
+
+    await page.getByRole("button", { name: /Hackathon judge/i }).click();
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
+
+test("the sign-out recovery route returns to the workspace", async ({
+  request,
+}) => {
+  const response = await request.get("/sign-out", { maxRedirects: 0 });
+  const location = response.headers().location;
+
+  expect([302, 303, 307, 308]).toContain(response.status());
+  expect(location).toEqual(expect.stringMatching(/\/app$/));
 });
 
 test("anonymous mutation endpoints return problem details", async ({
