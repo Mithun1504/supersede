@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
+import { headers } from "next/headers";
 
 import { AppProviders } from "@/components/providers/app-providers";
 import { bodyFont, headingFont } from "@/lib/fonts";
@@ -30,6 +31,10 @@ export default async function RootLayout({
   // A per-request CSP nonce can only be attached to dynamically rendered
   // framework scripts. Static shells would ship scripts without the nonce.
   await connection();
+  const nonce = (await headers()).get("x-nonce");
+  if (!nonce) {
+    throw new Error("CSP nonce is missing.");
+  }
 
   return (
     <html
@@ -39,7 +44,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body>
-        <AppProviders>{children}</AppProviders>
+        <AppProviders nonce={nonce}>{children}</AppProviders>
       </body>
     </html>
   );

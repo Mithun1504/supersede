@@ -130,6 +130,15 @@ test("live extraction explains the available access path before mutation", async
 test("unconfigured sign-in renders a public-demo page instead of problem JSON", async ({
   page,
 }) => {
+  const contentSecurityPolicyErrors: string[] = [];
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      message.text().includes("Content Security Policy")
+    ) {
+      contentSecurityPolicyErrors.push(message.text());
+    }
+  });
   const health = await page.request.get("/api/v1/health");
   const configuration = (await health.json()) as {
     configuration: { workos: boolean };
@@ -153,6 +162,7 @@ test("unconfigured sign-in renders a public-demo page instead of problem JSON", 
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze();
   expect(accessibility.violations).toEqual([]);
+  expect(contentSecurityPolicyErrors).toEqual([]);
 });
 
 test("crawler metadata is available", async ({ request }) => {

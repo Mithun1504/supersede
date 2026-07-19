@@ -6,7 +6,13 @@ import { ThemeProvider } from "next-themes";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-export function AppProviders({ children }: { children: React.ReactNode }) {
+export function AppProviders({
+  children,
+  nonce,
+}: {
+  children: React.ReactNode;
+  nonce: string;
+}) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -29,6 +35,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       defaultTheme="system"
       enableSystem
       enableColorScheme
+      nonce={nonce}
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>{children}</TooltipProvider>
