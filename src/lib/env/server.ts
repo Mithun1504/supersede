@@ -39,7 +39,7 @@ const serverEnvSchema = z.object({
   OPENAI_API_KEY: optionalSecret,
   OPENAI_PRIMARY_MODEL: optionalSecret.default("gpt-5.6"),
   GEMINI_API_KEY: optionalSecret,
-  EMBEDDING_MODEL: optionalSecret.default("gemini-embedding-2"),
+  EMBEDDING_MODEL: optionalSecret.default("gemini-embedding-001"),
   EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().default(768),
   INNGEST_EVENT_KEY: optionalSecret,
   INNGEST_SIGNING_KEY: optionalSecret,
@@ -48,6 +48,7 @@ const serverEnvSchema = z.object({
   SENTRY_DSN: optionalUrl,
   SENTRY_AUTH_TOKEN: optionalSecret,
   REPORT_SIGNING_SECRET: optionalSecret,
+  E2E_AUTH_SECRET: optionalSecret,
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

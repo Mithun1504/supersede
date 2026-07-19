@@ -5,7 +5,7 @@ import {
   workflowPost,
   uuidSchema,
 } from "@/app/api/v1/workflow/_shared/http";
-import { generateAuditReportBundle } from "@/modules/audit";
+import { queueAuditReportGeneration } from "@/modules/audit";
 import { requireTenantActor } from "@/modules/identity/request-context";
 
 export const reportBundleGenerationRequestSchema = idempotentBodySchema.extend({
@@ -17,12 +17,8 @@ export const reportBundleGenerationRequestSchema = idempotentBodySchema.extend({
 });
 
 export const reportBundleGenerationResponseSchema = z.object({
-  reportBundleId: uuidSchema,
-  storageObjectKey: z.string().min(1),
-  sha256: z.string().length(64),
-  retentionMode: z.enum(["standard", "object_lock"]),
-  worm: z.boolean(),
-  retainUntil: z.iso.datetime().optional(),
+  reportRequestId: uuidSchema,
+  status: z.literal("queued"),
 });
 
 export async function POST(request: Request) {
@@ -32,7 +28,7 @@ export async function POST(request: Request) {
     reportBundleGenerationResponseSchema,
     async (body, idempotencyKey) => {
       const { tenant } = await requireTenantActor();
-      return generateAuditReportBundle(tenant, { ...body, idempotencyKey });
+      return queueAuditReportGeneration(tenant, { ...body, idempotencyKey });
     },
   );
 }

@@ -9,6 +9,7 @@ import { AppError } from "@/lib/errors/app-error";
 export const API_RATE_LIMITS = {
   aiTask: { scope: "ai_task", limit: 30, windowSeconds: 60 },
   extraction: { scope: "extraction", limit: 20, windowSeconds: 60 },
+  retrieval: { scope: "retrieval", limit: 60, windowSeconds: 60 },
   uploadSign: { scope: "upload_sign", limit: 60, windowSeconds: 60 },
   uploadParse: { scope: "upload_parse", limit: 20, windowSeconds: 60 },
 } as const;

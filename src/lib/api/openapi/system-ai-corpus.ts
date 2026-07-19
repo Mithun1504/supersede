@@ -5,6 +5,10 @@ import { healthResponseSchema } from "@/app/api/v1/health/route";
 import { readinessResponseSchema } from "@/app/api/v1/readiness/route";
 import { problemDetailsSchema } from "@/lib/api/problem-details";
 import {
+  hybridRetrievalRequestSchema,
+  hybridRetrievalResponseSchema,
+} from "@/modules/corpus";
+import {
   extractionApiRequestSchema,
   extractionApiResponseSchema,
 } from "@/modules/corpus/extraction";
@@ -26,6 +30,40 @@ export function registerSystemAiAndCorpusPaths(registry: OpenAPIRegistry) {
         description: "Application is running.",
         content: {
           "application/json": { schema: healthResponseSchema },
+        },
+      },
+    },
+  });
+  registry.registerPath({
+    method: "post",
+    path: "/api/v1/retrieval",
+    summary: "Retrieve tenant-scoped approved evidence chunks",
+    tags: ["Corpus"],
+    request: {
+      body: {
+        content: {
+          "application/json": { schema: hybridRetrievalRequestSchema },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description:
+          "Hybrid semantic and lexical results after tenant and version-lock filters.",
+        content: {
+          "application/json": { schema: hybridRetrievalResponseSchema },
+        },
+      },
+      401: {
+        description: "Authentication is required.",
+        content: {
+          "application/problem+json": { schema: problemDetailsSchema },
+        },
+      },
+      503: {
+        description: "The configured embedding provider is unavailable.",
+        content: {
+          "application/problem+json": { schema: problemDetailsSchema },
         },
       },
     },

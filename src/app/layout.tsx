@@ -34,6 +34,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${bodyFont.variable} ${headingFont.variable}`}
       suppressHydrationWarning
     >

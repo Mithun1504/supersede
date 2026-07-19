@@ -43,6 +43,7 @@ BEGIN
       'audit_event',
       'outbox_event',
       'workflow_run',
+      'workflow_step',
       'organization_domain_policy',
       'professional_role',
       'person',
@@ -71,8 +72,8 @@ BEGIN
       'report_bundle'
     );
 
-  IF policy_count <> 33 THEN
-    RAISE EXCEPTION 'expected 33 tenant policies, found %', policy_count;
+  IF policy_count <> 34 THEN
+    RAISE EXCEPTION 'expected 34 tenant policies, found %', policy_count;
   END IF;
 
   SELECT count(*)
@@ -190,6 +191,31 @@ BEGIN
       AND is_nullable = 'YES'
   ) THEN
     RAISE EXCEPTION 'recheck_assignment.case_version_id must allow blocked rows';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'recheck_assignment'
+      AND column_name = 'remediation_assignment_id'
+      AND is_nullable = 'YES'
+  ) THEN
+    RAISE EXCEPTION 'recheck_assignment.remediation_assignment_id is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND tablename = 'document_chunk'
+      AND indexname = 'document_chunk_embedding_hnsw_idx'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND tablename = 'document_chunk'
+      AND indexname = 'document_chunk_search_vector_gin_idx'
+  ) THEN
+    RAISE EXCEPTION 'hybrid retrieval indexes are missing';
   END IF;
 
   IF NOT EXISTS (

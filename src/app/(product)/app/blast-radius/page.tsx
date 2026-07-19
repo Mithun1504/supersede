@@ -3,6 +3,12 @@ import type { Metadata } from "next";
 import type React from "react";
 
 import { SectionTitle, Surface } from "@/components/product/product-shell";
+import {
+  ArtifactCorrectionActions,
+  ArtifactOwnerAssignment,
+  ArtifactReviewActions,
+  MutationButton,
+} from "@/components/product/governed-actions";
 import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
 import { Button } from "@/components/ui/button";
 import { getProductWorkspace } from "@/modules/product";
@@ -65,6 +71,7 @@ export default async function BlastRadiusPage() {
   const reviewCount = artifactImpacts.filter(
     (impact) => impact.rewriteRequired === "candidate",
   ).length;
+  const canTriage = data.viewer.roles.includes("edge_reviewer");
 
   return (
     <AuthenticatedProductShell
@@ -184,6 +191,53 @@ export default async function BlastRadiusPage() {
                       <p className="text-muted-foreground mt-2 text-xs font-semibold">
                         Evidence confidence {formatPercent(impact.confidence)}
                       </p>
+                      {canTriage && impact.artifactId ? (
+                        <div className="mt-3">
+                          <MutationButton
+                            endpoint={`/api/v1/workflow/artifacts/${impact.artifactId}/triage`}
+                            label={
+                              impact.rewriteRequired === "yes"
+                                ? "Confirm correction"
+                                : "Confirm triage"
+                            }
+                            body={{
+                              artifactVersionId: impact.objectId,
+                              changeEventVersionId: data.change.versionId,
+                              decision:
+                                impact.rewriteRequired === "yes"
+                                  ? "requires_correction"
+                                  : "no_change_required",
+                              rationale: impact.rationale,
+                            }}
+                            variant="outline"
+                          />
+                        </div>
+                      ) : null}
+                      {canTriage && impact.artifactId ? (
+                        <ArtifactOwnerAssignment
+                          artifactId={impact.artifactId}
+                          members={data.members}
+                        />
+                      ) : null}
+                      {impact.artifactId &&
+                      impact.rewriteRequired === "yes" &&
+                      impact.artifactOwnerMembershipId ===
+                        data.viewer.membershipId ? (
+                        <ArtifactCorrectionActions
+                          artifactId={impact.artifactId}
+                          parentArtifactVersionId={impact.objectId}
+                        />
+                      ) : null}
+                      {canTriage &&
+                      impact.artifactId &&
+                      impact.correctionVersionId ? (
+                        <ArtifactReviewActions
+                          artifactId={impact.artifactId}
+                          artifactVersionId={impact.correctionVersionId}
+                          locked={Boolean(impact.correctionLockedAt)}
+                          published={impact.correctionPublished}
+                        />
+                      ) : null}
                     </LedgerCell>
                   </li>
                 );

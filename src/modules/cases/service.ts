@@ -37,7 +37,7 @@ const idempotencyKeySchema = z.string().trim().min(8).max(255);
 async function requireRole(
   transaction: Transaction,
   actor: TenantContext,
-  roleCode: "case_approver" | "release_authorizer",
+  roleCode: "change_owner" | "case_approver" | "release_authorizer",
 ) {
   const [role] = await transaction
     .select({ code: membershipRoles.roleCode })
@@ -149,6 +149,7 @@ export async function draftCaseVersion(
   const now = input.now ?? new Date();
 
   return withTenantContext(actor, async (transaction) => {
+    await requireRole(transaction, actor, "change_owner");
     const reservation = await reserveEvent(transaction, {
       organizationId: actor.organizationId,
       idempotencyKey: idempotencyKeySchema.parse(input.idempotencyKey),
@@ -587,6 +588,19 @@ async function createProbeAssignments(
       objectVersionId: caseVersionId,
       payload: { personId, changeEventVersionId },
       occurredAt: now,
+    });
+    await transaction.insert(outboxEvents).values({
+      organizationId: actor.organizationId,
+      eventName: "probe.assigned",
+      aggregateType: "probe_assignment",
+      aggregateId: assignment.id,
+      idempotencyKey: `probe.assigned:${assignment.id}`,
+      payload: {
+        probeAssignmentId: assignment.id,
+        actorMembershipId: actor.actorMembershipId,
+        caseVersionId,
+        changeEventVersionId,
+      },
     });
   }
 }

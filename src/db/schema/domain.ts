@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  customType,
   date,
   index,
   integer,
@@ -13,6 +14,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  vector,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -91,6 +93,12 @@ const timestamps = {
     .notNull()
     .defaultNow(),
 };
+
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 export const organizationDomainPolicies = pgTable(
   "organization_domain_policy",
@@ -306,7 +314,10 @@ export const documentChunks = pgTable(
     text: text("text").notNull(),
     checksum: varchar("checksum", { length: 64 }).notNull(),
     embeddingModel: varchar("embedding_model", { length: 128 }),
-    searchVector: text("search_vector"),
+    embedding: vector("embedding", { dimensions: 768 }),
+    searchVector: tsvector("search_vector").generatedAlwaysAs(
+      sql`to_tsvector('english', ${sql.raw('"text"')})`,
+    ),
     metadata: jsonb("metadata")
       .$type<Record<string, unknown>>()
       .notNull()
@@ -337,6 +348,13 @@ export const documentChunks = pgTable(
     index("document_chunk_org_source_idx").on(
       table.organizationId,
       table.sourceVersionId,
+    ),
+    index("document_chunk_embedding_hnsw_idx")
+      .using("hnsw", table.embedding.op("vector_cosine_ops"))
+      .where(sql`${table.embedding} IS NOT NULL`),
+    index("document_chunk_search_vector_gin_idx").using(
+      "gin",
+      table.searchVector,
     ),
   ],
 );

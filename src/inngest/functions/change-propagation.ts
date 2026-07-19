@@ -2,6 +2,11 @@ import { z } from "zod";
 
 import { inngest } from "@/inngest/client";
 import { runPropagationForOrganization } from "@/modules/changes/propagation";
+import {
+  beginWorkflow,
+  finishWorkflow,
+  recordWorkflowStep,
+} from "@/modules/workflows";
 
 export const changeValidatedPayloadSchema = z.object({
   organizationId: z.string().uuid(),
@@ -17,16 +22,39 @@ export const changePropagation = inngest.createFunction(
     retries: 4,
     concurrency: { limit: 2, key: "event.data.organizationId" },
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId }) => {
     const payload = changeValidatedPayloadSchema.parse(event.data);
-    return step.run("walk-reviewed-graph", () =>
-      runPropagationForOrganization(
-        {
-          organizationId: payload.organizationId,
-          actorMembershipId: payload.actorMembershipId,
-        },
-        payload.changeEventVersionId,
-      ),
+    const actor = {
+      organizationId: payload.organizationId,
+      actorMembershipId: payload.actorMembershipId,
+    };
+    const workflowRunId = await step.run("project-workflow-start", () =>
+      beginWorkflow(actor, {
+        externalRunId: runId,
+        workflowName: "change-propagation",
+        subjectType: "change_event_version",
+        subjectId: payload.changeEventVersionId,
+        totalSteps: 1,
+      }),
     );
+    try {
+      const result = await step.run("walk-reviewed-graph", () =>
+        runPropagationForOrganization(actor, payload.changeEventVersionId),
+      );
+      await step.run("project-propagation-complete", async () => {
+        await recordWorkflowStep(actor, {
+          workflowRunId,
+          stepKey: "propagate",
+          label: "Walk reviewed graph and persist impacts",
+          status: "completed",
+          detail: result,
+        });
+        await finishWorkflow(actor, workflowRunId);
+      });
+      return result;
+    } catch (error) {
+      await finishWorkflow(actor, workflowRunId, error);
+      throw error;
+    }
   },
 );

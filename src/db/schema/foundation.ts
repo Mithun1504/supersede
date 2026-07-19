@@ -156,10 +156,52 @@ export const workflowRuns = pgTable(
       .defaultNow(),
   },
   (table) => [
+    uniqueIndex("workflow_run_external_id_uq").on(
+      table.organizationId,
+      table.externalRunId,
+    ),
     index("workflow_run_subject_idx").on(
       table.organizationId,
       table.subjectType,
       table.subjectId,
+    ),
+  ],
+);
+
+export const workflowSteps = pgTable(
+  "workflow_step",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    workflowRunId: uuid("workflow_run_id")
+      .notNull()
+      .references(() => workflowRuns.id),
+    stepKey: varchar("step_key", { length: 128 }).notNull(),
+    label: varchar("label", { length: 255 }).notNull(),
+    status: workflowStatus("status").notNull().default("queued"),
+    detail: jsonb("detail")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("workflow_step_run_key_uq").on(
+      table.workflowRunId,
+      table.stepKey,
+    ),
+    index("workflow_step_org_run_idx").on(
+      table.organizationId,
+      table.workflowRunId,
     ),
   ],
 );

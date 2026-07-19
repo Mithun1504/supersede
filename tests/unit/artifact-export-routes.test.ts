@@ -18,7 +18,7 @@ import {
 import {
   approveRetentionChange,
   authorizeExportRelease,
-  generateAuditReportBundle,
+  queueAuditReportGeneration,
 } from "@/modules/audit";
 import {
   requireRequestAuthentication,
@@ -41,7 +41,7 @@ vi.mock("@/modules/artifacts", () => ({
 vi.mock("@/modules/audit", () => ({
   approveRetentionChange: vi.fn(),
   authorizeExportRelease: vi.fn(),
-  generateAuditReportBundle: vi.fn(),
+  queueAuditReportGeneration: vi.fn(),
 }));
 
 const tenant = {
@@ -90,13 +90,9 @@ describe("artifact and export approval routes", () => {
       retentionMode: "standard",
       worm: false,
     });
-    vi.mocked(generateAuditReportBundle).mockResolvedValue({
-      reportBundleId,
-      storageObjectKey:
-        "organizations/00000000-0000-4000-8000-000000000001/changes/00000000-0000-4000-8000-000000000044/versions/00000000-0000-4000-8000-000000000044/supersede-audit.zip",
-      sha256: "a".repeat(64),
-      retentionMode: "standard",
-      worm: false,
+    vi.mocked(queueAuditReportGeneration).mockResolvedValue({
+      reportRequestId: reportBundleId,
+      status: "queued",
     });
   });
 
@@ -222,11 +218,10 @@ describe("artifact and export approval routes", () => {
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
-      reportBundleId,
-      retentionMode: "standard",
-      worm: false,
+      reportRequestId: reportBundleId,
+      status: "queued",
     });
-    expect(generateAuditReportBundle).toHaveBeenCalledWith(tenant, {
+    expect(queueAuditReportGeneration).toHaveBeenCalledWith(tenant, {
       idempotencyKey: "idem-report-generate",
       changeEventId,
       changeEventVersionId,
@@ -245,7 +240,7 @@ describe("artifact and export approval routes", () => {
     );
 
     expect(response.status).toBe(422);
-    expect(generateAuditReportBundle).not.toHaveBeenCalled();
+    expect(queueAuditReportGeneration).not.toHaveBeenCalled();
   });
 
   it("requires a retention change reason before service authorization", async () => {

@@ -30,6 +30,87 @@ type GenerationResponse = {
   retainUntil?: string;
 };
 
+export type ReportGenerationRequest = {
+  reportRequestId: string;
+  status: "queued";
+};
+
+export async function queueAuditReportGeneration(
+  actor: TenantContext,
+  input: {
+    idempotencyKey: string;
+    changeEventId: string;
+    changeEventVersionId: string;
+    retentionMode?: "standard" | "object_lock";
+    retainUntil?: string | null | undefined;
+    cutoffAt?: string | undefined;
+  },
+): Promise<ReportGenerationRequest> {
+  const parsed = {
+    idempotencyKey: idempotencyKeySchema.parse(input.idempotencyKey),
+    changeEventId: uuidSchema.parse(input.changeEventId),
+    changeEventVersionId: uuidSchema.parse(input.changeEventVersionId),
+    retentionMode: retentionModeSchema
+      .optional()
+      .default("standard")
+      .parse(input.retentionMode),
+    retainUntil: optionalRetainUntilSchema.parse(input.retainUntil),
+    cutoffAt: input.cutoffAt
+      ? z.iso.datetime().parse(input.cutoffAt)
+      : undefined,
+  };
+  return withTenantContext(actor, async (transaction) => {
+    await requireAuditor(transaction, actor);
+    const payload = {
+      actorMembershipId: actor.actorMembershipId,
+      changeEventId: parsed.changeEventId,
+      changeEventVersionId: parsed.changeEventVersionId,
+      retentionMode: parsed.retentionMode,
+      retainUntil: parsed.retainUntil,
+      cutoffAt: parsed.cutoffAt,
+    };
+    const [created] = await transaction
+      .insert(outboxEvents)
+      .values({
+        organizationId: actor.organizationId,
+        idempotencyKey: parsed.idempotencyKey,
+        eventName: "report.requested",
+        aggregateType: "change_event_version",
+        aggregateId: parsed.changeEventVersionId,
+        payload,
+      })
+      .onConflictDoNothing({
+        target: [outboxEvents.organizationId, outboxEvents.idempotencyKey],
+      })
+      .returning({ id: outboxEvents.id });
+    if (created) return { reportRequestId: created.id, status: "queued" };
+
+    const [existing] = await transaction
+      .select({
+        id: outboxEvents.id,
+        eventName: outboxEvents.eventName,
+        payload: outboxEvents.payload,
+      })
+      .from(outboxEvents)
+      .where(
+        and(
+          eq(outboxEvents.organizationId, actor.organizationId),
+          eq(outboxEvents.idempotencyKey, parsed.idempotencyKey),
+        ),
+      )
+      .limit(1);
+    if (!existing || existing.eventName !== "report.requested") {
+      throw new AppError({
+        code: "CONFLICT",
+        message: "The idempotency key was already used for another operation.",
+        status: 409,
+      });
+    }
+    assertIdempotencyActor(existing.payload, actor.actorMembershipId);
+    return { reportRequestId: existing.id, status: "queued" };
+  });
+}
+
 function existingResponse(
   payload: Record<string, unknown>,
 ): GenerationResponse {

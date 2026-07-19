@@ -57,7 +57,6 @@ export function ProductShell({
   return (
     <TooltipProvider>
       <div className="text-foreground min-h-dvh">
-        <RealtimeRefresh />
         <a
           href="#content"
           className="bg-foreground text-background focus-visible:ring-ring fixed top-2 left-2 z-[70] -translate-y-20 rounded-md px-4 py-2 text-sm font-bold focus-visible:translate-y-0 focus-visible:ring-3"
@@ -145,6 +144,7 @@ function ProductTopbar({
         <span className="text-muted-foreground hidden text-xs sm:inline">
           {viewer?.authenticated ? "Governed workspace" : "Public, read-only"}
         </span>
+        <RealtimeRefresh authenticated={viewer?.authenticated ?? false} />
         <ThemeToggle />
       </div>
     </header>

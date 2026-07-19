@@ -1,8 +1,9 @@
 import "server-only";
 
 import { withAuth } from "@workos-inc/authkit-nextjs";
+import { headers } from "next/headers";
 
-import { isWorkOSConfigured } from "@/lib/env/server";
+import { getServerEnv, isWorkOSConfigured } from "@/lib/env/server";
 
 export type AuthContext = {
   workosUserId: string;
@@ -12,6 +13,25 @@ export type AuthContext = {
 };
 
 export async function getOptionalAuthContext(): Promise<AuthContext | null> {
+  const env = getServerEnv();
+  if (env.NODE_ENV !== "production" && env.E2E_AUTH_SECRET) {
+    const requestHeaders = await headers();
+    if (
+      requestHeaders.get("x-supersede-e2e-key") === env.E2E_AUTH_SECRET &&
+      requestHeaders.get("x-supersede-e2e-user") &&
+      requestHeaders.get("x-supersede-e2e-organization")
+    ) {
+      return {
+        workosUserId: requestHeaders.get("x-supersede-e2e-user")!,
+        workosOrganizationId: requestHeaders.get(
+          "x-supersede-e2e-organization",
+        ),
+        email: "e2e@supersede.local",
+        displayName:
+          requestHeaders.get("x-supersede-e2e-name") ?? "E2E governed actor",
+      };
+    }
+  }
   if (!isWorkOSConfigured()) {
     return null;
   }

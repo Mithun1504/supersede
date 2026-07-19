@@ -9,4 +9,5 @@ export const handlers = [
       configuration: {},
     }),
   ),
+  http.get("*/api/v1/workflows", () => HttpResponse.json({ runs: [] })),
 ];

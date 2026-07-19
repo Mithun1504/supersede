@@ -17,5 +17,9 @@ export {
   authorizeExportRelease,
   type ExportApprovalResponse,
 } from "@/modules/audit/approvals";
-export { generateAuditReportBundle } from "@/modules/audit/generation";
+export {
+  generateAuditReportBundle,
+  queueAuditReportGeneration,
+  type ReportGenerationRequest,
+} from "@/modules/audit/generation";
 export { buildAuditReportInput } from "@/modules/audit/generation-evidence";

@@ -3,6 +3,7 @@
 import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
 
 import { SectionTitle, Surface } from "@/components/product/product-shell";
+import { ProbeResponseActions } from "@/components/product/governed-actions";
 import { StatusPill } from "@/components/product/status";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -103,10 +104,12 @@ export function ProbeDashboard({
   probes,
   summary,
   individualResultsVisible,
+  learnerName,
 }: {
   probes: ProductWorkspace["probes"];
   summary: ProbeSummary;
   individualResultsVisible: boolean;
+  learnerName?: string;
 }) {
   const [selectedId, setSelectedId] = useState(probes[0]?.assignmentId);
   const [filter, setFilter] = useState<QueueFilter>("all");
@@ -191,7 +194,12 @@ export function ProbeDashboard({
             </p>
           </Surface>
           <div id="assignment-inspector">
-            <AssignmentInspector probe={selected} />
+            <AssignmentInspector
+              probe={selected}
+              canRespond={Boolean(
+                learnerName && selected?.personName === learnerName,
+              )}
+            />
           </div>
         </section>
       ) : (
@@ -318,7 +326,13 @@ function AssignmentRow({
   );
 }
 
-function AssignmentInspector({ probe }: { probe: Probe | undefined }) {
+function AssignmentInspector({
+  probe,
+  canRespond,
+}: {
+  probe: Probe | undefined;
+  canRespond: boolean;
+}) {
   return (
     <Surface className="h-fit overflow-hidden xl:sticky xl:top-24">
       <SectionTitle
@@ -405,6 +419,16 @@ function AssignmentInspector({ probe }: { probe: Probe | undefined }) {
               case does not close this assignment.
             </p>
           </EvidenceSection>
+          {canRespond ? (
+            <EvidenceSection title="Governed learner action">
+              <ProbeResponseActions
+                assignmentId={probe.assignmentId}
+                remediationAssignmentId={probe.remediationAssignmentId}
+                hasResponse={Boolean(probe.responseId)}
+                remediationPassed={probe.remediationStatus === "passed"}
+              />
+            </EvidenceSection>
+          ) : null}
         </div>
       ) : (
         <p className="text-muted-foreground p-5 text-sm">

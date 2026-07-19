@@ -2,6 +2,10 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { Surface } from "@/components/product/product-shell";
+import {
+  CaseDraftForm,
+  MutationButton,
+} from "@/components/product/governed-actions";
 import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
 import { StatusPill } from "@/components/product/status";
 import { Button } from "@/components/ui/button";
@@ -34,9 +38,33 @@ export default async function CasesPage() {
       }
     >
       <div className="grid gap-6">
+        {data.viewer.roles.includes("change_owner") ? (
+          <Surface className="overflow-hidden">
+            <div className="border-border border-b px-5 py-4 sm:px-6">
+              <h2 className="text-lg font-semibold">Draft a decision case</h2>
+              <p className="text-muted-foreground mt-1 text-sm leading-6">
+                Author a versioned old-rule/new-rule boundary with exact source
+                citations. Independent approval remains mandatory.
+              </p>
+            </div>
+            <div className="p-5 sm:p-6">
+              <CaseDraftForm
+                changeEventId={data.change.id}
+                changeEventVersionId={data.change.versionId}
+                oldSourceVersionId={data.change.oldSourceVersionId}
+                newSourceVersionId={data.change.newSourceVersionId}
+              />
+            </div>
+          </Surface>
+        ) : null}
         {data.cases.length ? (
           data.cases.map((item) => (
-            <DecisionCaseDossier item={item} key={item.versionId} />
+            <DecisionCaseDossier
+              item={item}
+              canApprove={data.viewer.roles.includes("case_approver")}
+              canRelease={data.viewer.roles.includes("release_authorizer")}
+              key={item.versionId}
+            />
           ))
         ) : (
           <Surface className="px-5 py-8 sm:px-6">
@@ -52,7 +80,15 @@ export default async function CasesPage() {
   );
 }
 
-function DecisionCaseDossier({ item }: { item: DecisionCase }) {
+function DecisionCaseDossier({
+  item,
+  canApprove,
+  canRelease,
+}: {
+  item: DecisionCase;
+  canApprove: boolean;
+  canRelease: boolean;
+}) {
   const release = getReleaseState(item);
 
   return (
@@ -61,9 +97,20 @@ function DecisionCaseDossier({ item }: { item: DecisionCase }) {
         <CaseHeader item={item} release={release} />
         <DecisionBoundary item={item} />
         <ApprovalLedger item={item} />
-        <footer className="border-border bg-muted/20 grid gap-1 border-t px-5 py-4 text-sm sm:grid-cols-[9rem_minmax(0,1fr)] sm:px-6">
+        <footer className="border-border bg-muted/20 grid gap-3 border-t px-5 py-4 text-sm sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:items-center sm:px-6">
           <p className="font-bold">Release policy</p>
           <p className="text-muted-foreground">{release.detail}</p>
+          {canApprove && item.status === "draft" && !item.ambiguityNote ? (
+            <MutationButton
+              endpoint={`/api/v1/workflow/cases/${item.id}/versions/${item.versionId}/approve`}
+              label="Approve and lock"
+            />
+          ) : canRelease && isReleaseEligible(item) ? (
+            <MutationButton
+              endpoint={`/api/v1/workflow/cases/${item.id}/versions/${item.versionId}/release`}
+              label="Release to probes"
+            />
+          ) : null}
         </footer>
       </article>
     </Surface>

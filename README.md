@@ -64,6 +64,8 @@ pnpm inngest:dev
   memberships; the product has no impersonation or role switcher.
 - `OPENAI_API_KEY` and `OPENAI_PRIMARY_MODEL=gpt-5.6` for the live completion
   gate.
+- `GEMINI_API_KEY`, `EMBEDDING_MODEL=gemini-embedding-001`, and
+  `EMBEDDING_DIMENSIONS=768` for document/query embeddings and hybrid retrieval.
 - Private R2-compatible working storage credentials and bucket.
 - Inngest event/signing keys for durable propagation and due-work dispatch.
 - Optional S3 audit bucket. Select Object Lock retention only for a bucket that
@@ -82,6 +84,7 @@ pnpm format:check
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm eval
 pnpm build
 pnpm test:e2e
 pnpm audit --prod
@@ -90,6 +93,12 @@ pnpm audit --prod
 Ordinary tests use deterministic fixtures. They never count as proof of the
 live extraction gate; release verification must also make an authenticated
 GPT-5.6 extraction call and verify returned quotes against the submitted text.
+With release credentials configured, run both provider gates explicitly:
+
+```bash
+pnpm verify:live-extraction
+pnpm verify:live-embedding
+```
 
 ## Boundaries
 

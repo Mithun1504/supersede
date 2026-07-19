@@ -407,6 +407,9 @@ export const recheckAssignments = pgTable(
     changeEventVersionId: uuid("change_event_version_id")
       .notNull()
       .references(() => changeEventVersions.id),
+    remediationAssignmentId: uuid("remediation_assignment_id").references(
+      () => remediationAssignments.id,
+    ),
     caseVersionId: uuid("case_version_id").references(
       () => divergenceCaseVersions.id,
     ),
@@ -419,7 +422,10 @@ export const recheckAssignments = pgTable(
   },
   (table) => [
     index("recheck_assignment_due_idx").on(table.organizationId, table.dueOn),
-    uniqueIndex("recheck_assignment_unique_uq").on(
+    uniqueIndex("recheck_assignment_remediation_due_uq")
+      .on(table.remediationAssignmentId, table.dueOn)
+      .where(sql`${table.remediationAssignmentId} is not null`),
+    index("recheck_assignment_person_change_idx").on(
       table.personId,
       table.changeEventVersionId,
       table.dueOn,

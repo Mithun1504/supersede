@@ -11,6 +11,7 @@ import {
   auditEvents,
   claims,
   claimVersions,
+  outboxEvents,
 } from "@/db/schema";
 import { type TenantContext, withTenantContext } from "@/db/tenant-context";
 import { AppError } from "@/lib/errors/app-error";
@@ -120,6 +121,19 @@ export async function ensureIngestedArtifactVersion(
         objectVersionId: version.id,
         payload: { sourceHash, artifactKind: "protocol" },
         occurredAt: now,
+      });
+      await transaction.insert(outboxEvents).values({
+        organizationId: actor.organizationId,
+        eventName: "document.ingested",
+        aggregateType: "artifact_version",
+        aggregateId: version.id,
+        idempotencyKey: `document.ingested:${version.id}:${fileSha256}`,
+        payload: {
+          artifactId: artifact.id,
+          artifactVersionId: version.id,
+          actorMembershipId: actor.actorMembershipId,
+          title: documentTitle,
+        },
       });
     }
 

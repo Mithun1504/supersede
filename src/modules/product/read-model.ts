@@ -30,6 +30,7 @@ type CoreRow = {
   lockedAt: Date | string | null;
   enteredBy: string;
   validatedBy: string | null;
+  sourceId: string;
   sourceTitle: string;
   oldSourceVersionId: string;
   newSourceVersionId: string;
@@ -78,7 +79,14 @@ type ImpactRow = {
   artifactKind: string | null;
   artifactVersionLabel: string | null;
   artifactOwner: string | null;
+  artifactOwnerMembershipId: string | null;
+  correctionVersionId: string | null;
+  correctionVersionLabel: string | null;
+  correctionLockedAt: Date | string | null;
+  correctionPublished: boolean;
 };
+
+type MemberRow = { id: string; displayName: string };
 
 type ExposureRow = {
   exposureId: string;
@@ -88,6 +96,14 @@ type ExposureRow = {
   confidence: string;
   rationale: string;
   peopleCount: number;
+};
+
+type EdgeRow = {
+  edgeId: string;
+  edgeVersionId: string;
+  evidenceQuote: string;
+  confidence: string;
+  reviewStatus: ClaimRow["reviewStatus"];
 };
 
 type CaseRow = {
@@ -186,6 +202,7 @@ export type ProductWorkspace = {
     individualResultsVisible: boolean;
   };
   viewer: {
+    membershipId: string;
     displayName: string;
     authenticated: boolean;
     organizationReady: boolean;
@@ -204,6 +221,7 @@ export type ProductWorkspace = {
     lockedAt: string | null;
     enteredBy: string;
     validatedBy: string | null;
+    sourceId: string;
     sourceTitle: string;
     oldSourceVersionId: string;
     newSourceVersionId: string;
@@ -248,7 +266,13 @@ export type ProductWorkspace = {
     artifactKind: string | null;
     artifactVersionLabel: string | null;
     artifactOwner: string | null;
+    artifactOwnerMembershipId: string | null;
+    correctionVersionId: string | null;
+    correctionVersionLabel: string | null;
+    correctionLockedAt: string | null;
+    correctionPublished: boolean;
   }>;
+  members: Array<{ id: string; displayName: string }>;
   exposures: Array<{
     id: string;
     artifactVersionId: string;
@@ -257,6 +281,13 @@ export type ProductWorkspace = {
     confidence: number;
     rationale: string;
     peopleCount: number;
+  }>;
+  edges: Array<{
+    id: string;
+    versionId: string;
+    evidenceQuote: string;
+    confidence: number;
+    reviewStatus: ClaimRow["reviewStatus"];
   }>;
   cases: Array<{
     id: string;
@@ -375,6 +406,7 @@ async function loadWorkspace(
       cev.locked_at as "lockedAt",
       entered.display_name as "enteredBy",
       validated.display_name as "validatedBy",
+      s.id::text as "sourceId",
       s.title as "sourceTitle",
       old_sv.id::text as "oldSourceVersionId",
       new_sv.id::text as "newSourceVersionId",
@@ -467,13 +499,33 @@ async function loadWorkspace(
       a.title as "artifactTitle",
       a.kind::text as "artifactKind",
       av.version_label as "artifactVersionLabel",
-      owner.display_name as "artifactOwner"
+      owner.display_name as "artifactOwner",
+      owner.id::text as "artifactOwnerMembershipId",
+      correction.id::text as "correctionVersionId",
+      correction.version_label as "correctionVersionLabel",
+      correction.locked_at as "correctionLockedAt",
+      coalesce(correction.published, false) as "correctionPublished"
     from change_impact ci
     left join artifact_version av
       on ci.impacted_object_type = 'artifact_version'
      and av.id = ci.impacted_object_id
     left join artifact a on a.id = av.artifact_id
     left join membership owner on owner.id = a.owner_membership_id
+    left join lateral (
+      select candidate.id, candidate.version_label, candidate.locked_at,
+        exists (
+          select 1 from audit_event publication
+          where publication.organization_id = candidate.organization_id
+            and publication.object_version_id = candidate.id
+            and publication.event_type = 'artifact.version_published'
+        ) as published
+      from artifact_version candidate
+      where candidate.organization_id = ci.organization_id
+        and candidate.artifact_id = a.id
+        and candidate.id <> av.id
+      order by candidate.created_at desc
+      limit 1
+    ) correction on true
     where ci.organization_id = ${organizationId}
       and ci.change_event_version_id = ${active.changeEventVersionId}
     order by ci.confidence desc, ci.path_depth asc
@@ -502,6 +554,19 @@ async function loadWorkspace(
       )
     group by rae.id, pr.id
     order by rae.confidence desc, pr.display_name asc
+  `);
+
+  const edgeResult = await transaction.execute<EdgeRow>(sql`
+    select edge.id::text as "edgeId", version.id::text as "edgeVersionId",
+      version.evidence_quote as "evidenceQuote", version.confidence::text,
+      version.review_status as "reviewStatus"
+    from dependency_edge edge
+    join dependency_edge_version version
+      on version.organization_id = edge.organization_id and version.edge_id = edge.id
+    where edge.organization_id = ${organizationId}
+      and edge.to_object_type = 'source_version'
+      and edge.to_object_id = ${active.oldSourceVersionId}
+    order by version.created_at desc
   `);
 
   const caseResult = await transaction.execute<CaseRow>(sql`
@@ -669,6 +734,14 @@ async function loadWorkspace(
     order by ce.created_at desc, cev.created_at desc
   `);
 
+  const memberResult = await transaction.execute<MemberRow>(sql`
+    select id::text, display_name as "displayName"
+    from membership
+    where organization_id = ${organizationId}
+      and status = 'active'
+    order by display_name
+  `);
+
   return {
     organization: {
       id: active.organizationId,
@@ -689,6 +762,7 @@ async function loadWorkspace(
       lockedAt: toIso(active.lockedAt),
       enteredBy: active.enteredBy,
       validatedBy: active.validatedBy,
+      sourceId: active.sourceId,
       sourceTitle: active.sourceTitle,
       oldSourceVersionId: active.oldSourceVersionId,
       newSourceVersionId: active.newSourceVersionId,
@@ -734,6 +808,11 @@ async function loadWorkspace(
       artifactKind: row.artifactKind,
       artifactVersionLabel: row.artifactVersionLabel,
       artifactOwner: row.artifactOwner,
+      artifactOwnerMembershipId: row.artifactOwnerMembershipId,
+      correctionVersionId: row.correctionVersionId,
+      correctionVersionLabel: row.correctionVersionLabel,
+      correctionLockedAt: toIso(row.correctionLockedAt),
+      correctionPublished: row.correctionPublished,
     })),
     exposures: exposureResult.rows.map((row) => ({
       id: row.exposureId,
@@ -744,6 +823,14 @@ async function loadWorkspace(
       rationale: row.rationale,
       peopleCount: row.peopleCount,
     })),
+    edges: edgeResult.rows.map((row) => ({
+      id: row.edgeId,
+      versionId: row.edgeVersionId,
+      evidenceQuote: row.evidenceQuote,
+      confidence: Number(row.confidence),
+      reviewStatus: row.reviewStatus,
+    })),
+    members: memberResult.rows,
     cases: caseResult.rows.map((row) => ({
       id: row.caseId,
       versionId: row.caseVersionId,
@@ -848,6 +935,7 @@ export const getProductWorkspace = cache(
     return {
       ...workspace,
       viewer: {
+        membershipId: tenant.actorMembershipId,
         displayName: auth?.displayName ?? "Public walkthrough",
         authenticated: Boolean(auth),
         organizationReady: Boolean(auth?.workosOrganizationId),

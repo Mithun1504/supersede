@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { SectionTitle, Surface } from "@/components/product/product-shell";
+import { MutationButton } from "@/components/product/governed-actions";
 import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
 import { Button } from "@/components/ui/button";
 import { getProductWorkspace } from "@/modules/product";
@@ -57,7 +58,17 @@ export default async function AuditPage() {
       title="Audit trail"
       description="Trace the assignments, decisions, approvals, and export evidence linked to the active change dossier."
       action={
-        !data.viewer.authenticated ? (
+        data.viewer.roles.includes("auditor") ? (
+          <MutationButton
+            endpoint="/api/v1/exports"
+            label="Generate checksummed bundle"
+            body={{
+              changeEventId: data.change.id,
+              changeEventVersionId: data.change.versionId,
+              retentionMode: "standard",
+            }}
+          />
+        ) : !data.viewer.authenticated ? (
           <Button asChild variant="outline">
             <a href="/api/v1/public/walkthrough/audit-export" download>
               Download public demo bundle

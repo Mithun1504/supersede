@@ -73,7 +73,7 @@ export async function completeRemediation(
     const reservation = await reserveLearningEvent(transaction, {
       organizationId: actor.organizationId,
       idempotencyKey: idempotencyKeySchema.parse(input.idempotencyKey),
-      eventName: "remediation.completed",
+      eventName: input.passed ? "remediation.passed" : "remediation.failed",
       aggregateType: "remediation_assignment",
       aggregateId: remediationAssignmentId,
       payload: {
@@ -220,6 +220,7 @@ export async function completeRemediation(
         organizationId: actor.organizationId,
         personId: remediation.personId,
         changeEventVersionId: remediation.changeEventVersionId,
+        remediationAssignmentId,
         caseVersionId: plan.caseVersionId,
         dueOn: isoDate(plan.dueAt),
         status: plan.status,

@@ -4,8 +4,13 @@ import { inngest } from "@/inngest/client";
 import {
   caseApproved,
   changePropagation,
+  documentIndexing,
   dueWorkDispatch,
   outboxPublisher,
+  probeAssignmentWorkflow,
+  probeGradingWorkflow,
+  remediationWorkflow,
+  reportGenerationWorkflow,
 } from "@/inngest/functions";
 
 export const { GET, POST, PUT } = serve({
@@ -13,7 +18,12 @@ export const { GET, POST, PUT } = serve({
   functions: [
     caseApproved,
     changePropagation,
+    documentIndexing,
     dueWorkDispatch,
     outboxPublisher,
+    probeAssignmentWorkflow,
+    probeGradingWorkflow,
+    remediationWorkflow,
+    reportGenerationWorkflow,
   ],
 });

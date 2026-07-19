@@ -4,6 +4,15 @@ import mammoth from "mammoth";
 import type { TextItem } from "pdfjs-dist/types/src/display/api";
 import readXlsxFile from "read-excel-file/node";
 
+export {
+  chunkDocument,
+  hybridRetrievalRequestSchema,
+  hybridRetrievalResponseSchema,
+  hybridRetrievalResultSchema,
+  hybridRetrieve,
+  indexArtifactVersion,
+} from "@/modules/corpus/indexing";
+
 export type SupportedDocumentKind =
   "text" | "markdown" | "html" | "docx" | "xlsx" | "text_pdf";
 

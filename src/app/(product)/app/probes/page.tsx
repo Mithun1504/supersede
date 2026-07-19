@@ -53,6 +53,9 @@ export default async function ProbesPage() {
         probes={data.organization.individualResultsVisible ? data.probes : []}
         summary={summary}
         individualResultsVisible={data.organization.individualResultsVisible}
+        {...(data.viewer.roles.includes("learner")
+          ? { learnerName: data.viewer.displayName }
+          : {})}
       />
     </AuthenticatedProductShell>
   );

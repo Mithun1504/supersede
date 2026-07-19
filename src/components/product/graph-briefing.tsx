@@ -5,6 +5,8 @@ import {
   type GraphItem,
 } from "@/components/product/interactive-graph";
 import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
+import { EdgeReviewActions } from "@/components/product/governed-actions";
+import { SectionTitle, Surface } from "@/components/product/product-shell";
 import { Button } from "@/components/ui/button";
 import { getProductWorkspace } from "@/modules/product";
 
@@ -155,6 +157,40 @@ export async function GraphBriefing() {
           {recordsNeedingReview === 1 ? "" : "s"}
         </p>
       </section>
+      {data.viewer.roles.includes("edge_reviewer") &&
+      data.edges.some((edge) => edge.reviewStatus !== "reviewed") ? (
+        <Surface className="overflow-hidden">
+          <SectionTitle
+            title="Dependency edge review"
+            detail="Accept only quoted, version-locked relationships. Each decision is written to the approval and audit ledgers."
+          />
+          <div className="divide-border divide-y">
+            {data.edges
+              .filter((edge) => edge.reviewStatus !== "reviewed")
+              .map((edge) => (
+                <div
+                  className="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                  key={edge.versionId}
+                >
+                  <div>
+                    <blockquote className="text-sm leading-6">
+                      “{edge.evidenceQuote}”
+                    </blockquote>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      Confidence {Math.round(edge.confidence * 100)}%
+                    </p>
+                  </div>
+                  <EdgeReviewActions
+                    edgeId={edge.id}
+                    edgeVersionId={edge.versionId}
+                    evidenceQuote={edge.evidenceQuote}
+                    loadBearingScore={edge.confidence}
+                  />
+                </div>
+              ))}
+          </div>
+        </Surface>
+      ) : null}
       <InteractiveGraph items={items} />
     </AuthenticatedProductShell>
   );

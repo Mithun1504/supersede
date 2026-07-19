@@ -162,6 +162,35 @@ export async function gradeProbeResponse(
   },
   options: GovernedRunOptions = {},
 ) {
+  const normalizedResponse = normalizeAnswer(input.responseText);
+  const normalizedOld = normalizeAnswer(input.oldAnswer);
+  const normalizedNew = normalizeAnswer(input.newAnswer);
+  if (
+    normalizedResponse === normalizedOld ||
+    normalizedResponse === normalizedNew
+  ) {
+    const answeredWith =
+      normalizedResponse === normalizedOld
+        ? ("old" as const)
+        : ("new" as const);
+    return {
+      answeredWith,
+      confidence: 1,
+      exactQuote: input.responseText,
+      matchedApprovedCaseRationale: input.approvedCaseRationale,
+      reviewRequired: false,
+      provenance: {
+        provider: "deterministic-policy",
+        model: "exact-answer-match-v1",
+        promptVersion: "probe_grade_exact_v1",
+        schemaVersion: "probe_grade_v1",
+        sourceHashes: [input.caseVersionHash],
+        retrievalChunkIds: [],
+        latencyMs: 0,
+        validated: true,
+      },
+    };
+  }
   const run = await runStructuredOpenAiTask({
     task: governedAiTasks.probeGrade,
     input,
@@ -179,6 +208,14 @@ export async function gradeProbeResponse(
     ),
     provenance: run.provenance,
   };
+}
+
+function normalizeAnswer(value: string) {
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[.\s]+$/g, "")
+    .replace(/\s+/g, " ");
 }
 
 export async function assessArtifactCorrection(

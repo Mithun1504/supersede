@@ -2,6 +2,11 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { Surface } from "@/components/product/product-shell";
+import {
+  ChangeEntryForm,
+  MutationButton,
+} from "@/components/product/governed-actions";
+import { SectionTitle } from "@/components/product/product-shell";
 import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
 import { StatusPill } from "@/components/product/status";
 import { Button } from "@/components/ui/button";
@@ -28,9 +33,28 @@ export default async function ChangesPage() {
       }
     >
       <div className="grid gap-6">
+        {data.viewer.roles.includes("change_owner") ? (
+          <Surface className="overflow-hidden">
+            <SectionTitle
+              title="Record a source change"
+              detail="Creates a versioned draft. A different actor must validate it before propagation."
+            />
+            <div className="p-5 sm:p-6">
+              <ChangeEntryForm
+                sourceId={data.change.sourceId}
+                oldSourceVersionId={data.change.oldSourceVersionId}
+                newSourceVersionId={data.change.newSourceVersionId}
+              />
+            </div>
+          </Surface>
+        ) : null}
         {data.changes.length ? (
           data.changes.map((change) => (
-            <ChangeDossier change={change} key={change.versionId} />
+            <ChangeDossier
+              change={change}
+              canValidate={data.viewer.roles.includes("change_validator")}
+              key={change.versionId}
+            />
           ))
         ) : (
           <Surface className="px-5 py-8 sm:px-6">
@@ -46,7 +70,13 @@ export default async function ChangesPage() {
   );
 }
 
-function ChangeDossier({ change }: { change: Change }) {
+function ChangeDossier({
+  change,
+  canValidate,
+}: {
+  change: Change;
+  canValidate: boolean;
+}) {
   const governance = getGovernanceState(change);
 
   return (
@@ -55,12 +85,20 @@ function ChangeDossier({ change }: { change: Change }) {
         <ChangeHeader change={change} governance={governance} />
         <RuleRevision change={change} />
         <GovernanceLedger change={change} />
-        <footer className="border-border bg-muted/20 grid gap-2 border-t px-5 py-4 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
+        <footer className="border-border bg-muted/20 grid gap-3 border-t px-5 py-4 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
           <p className="text-muted-foreground">{governance.detail}</p>
-          <p className="font-medium tabular-nums">
-            {change.impactCount} downstream{" "}
-            {pluralize(change.impactCount, "impact record")}
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="font-medium tabular-nums">
+              {change.impactCount} downstream{" "}
+              {pluralize(change.impactCount, "impact record")}
+            </p>
+            {canValidate && !change.validatedAt ? (
+              <MutationButton
+                endpoint={`/api/v1/workflow/changes/${change.id}/versions/${change.versionId}/validate`}
+                label="Validate and lock"
+              />
+            ) : null}
+          </div>
         </footer>
       </article>
     </Surface>

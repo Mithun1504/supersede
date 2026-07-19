@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
-import { and, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { and, count, eq } from "drizzle-orm";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
 import * as schema from "@/db/schema";
@@ -89,6 +89,106 @@ function must<T>(value: T | undefined, label: string): T {
   return value;
 }
 
+async function upgradeExistingSeed(
+  database: NodePgDatabase<typeof schema>,
+  organizationId: string,
+  sourceId: string,
+) {
+  const [activeChange] = await database
+    .select({
+      changeEventId: changeEvents.id,
+      changeEventVersionId: changeEventVersions.id,
+      oldSourceVersionId: changeEventVersions.oldSourceVersionId,
+      newSourceVersionId: changeEventVersions.newSourceVersionId,
+    })
+    .from(changeEvents)
+    .innerJoin(
+      changeEventVersions,
+      eq(changeEventVersions.changeEventId, changeEvents.id),
+    )
+    .where(
+      and(
+        eq(changeEvents.organizationId, organizationId),
+        eq(changeEvents.sourceId, sourceId),
+      ),
+    )
+    .limit(1);
+  if (!activeChange) return;
+  const [existing] = await database
+    .select({ value: count() })
+    .from(divergenceCaseVersions)
+    .where(
+      eq(
+        divergenceCaseVersions.changeEventVersionId,
+        activeChange.changeEventVersionId,
+      ),
+    );
+  const currentCount = Number(existing?.value ?? 0);
+  if (currentCount >= 3) return;
+  const actorRows = await database
+    .select({ id: memberships.id, workosUserId: memberships.workosUserId })
+    .from(memberships)
+    .where(eq(memberships.organizationId, organizationId));
+  const actorByWorkos = new Map(
+    actorRows.map((actor) => [actor.workosUserId, actor.id]),
+  );
+  const authorId = must(
+    actorByWorkos.get("user_demo_change-owner"),
+    "existing change owner",
+  );
+  const templates = [
+    {
+      scenario:
+        "A patient has a fictional coagulation marker of 65 and no exclusions.",
+      oldAnswer: "Start anticoagulation.",
+      newAnswer: "Hold anticoagulation.",
+      rationale:
+        "65 remains above the retired threshold and below the current threshold.",
+      ambiguityNote: null,
+    },
+    {
+      scenario:
+        "A patient has a fictional coagulation marker of 67 with an unresolved exclusion.",
+      oldAnswer:
+        "Apply the retired threshold only after resolving the exclusion.",
+      newAnswer:
+        "Hold treatment and resolve the exclusion before reassessment.",
+      rationale:
+        "The threshold changes the default decision, while the exclusion preserves a visible ambiguity boundary.",
+      ambiguityNote:
+        "This case is intentionally retained as an adversarial draft and cannot be approved.",
+    },
+  ];
+  for (const template of templates.slice(Math.max(0, currentCount - 1))) {
+    const [caseRow] = await database
+      .insert(divergenceCases)
+      .values({ organizationId, changeEventId: activeChange.changeEventId })
+      .returning({ id: divergenceCases.id });
+    if (!caseRow) throw new Error("Failed to upgrade decision-case seed.");
+    await database.insert(divergenceCaseVersions).values({
+      organizationId,
+      caseId: caseRow.id,
+      changeEventVersionId: activeChange.changeEventVersionId,
+      versionLabel: "v1",
+      scenario: template.scenario,
+      oldAnswer: template.oldAnswer,
+      newAnswer: template.newAnswer,
+      rationale: template.rationale,
+      oldCitation: {
+        sourceVersionId: activeChange.oldSourceVersionId,
+        quote: "at least 52",
+      },
+      newCitation: {
+        sourceVersionId: activeChange.newSourceVersionId,
+        quote: "at least 68",
+      },
+      ambiguityNote: template.ambiguityNote,
+      status: "draft",
+      authoredByMembershipId: authorId,
+    });
+  }
+}
+
 async function seed() {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is required for seeding.");
@@ -135,8 +235,9 @@ async function seed() {
     )
     .limit(1);
   if (existingSource[0]) {
+    await upgradeExistingSeed(database, organization.id, existingSource[0].id);
     console.info(
-      "St. Marlowe domain seed is already present; no changes required.",
+      "St. Marlowe domain seed is present and upgraded to the current scenario.",
     );
     await pool.end();
     return;
@@ -414,7 +515,7 @@ async function seed() {
     endOffset: protocolText.length,
     text: protocolText,
     checksum: sha256(protocolText),
-    embeddingModel: "gemini-embedding-2",
+    embeddingModel: "gemini-embedding-001",
   });
 
   const [claim] = await database
@@ -625,41 +726,101 @@ async function seed() {
     },
   ]);
 
-  const [caseRow] = await database
+  const caseRows = await database
     .insert(divergenceCases)
-    .values({ organizationId: organization.id, changeEventId: changeRow.id })
+    .values([
+      { organizationId: organization.id, changeEventId: changeRow.id },
+      { organizationId: organization.id, changeEventId: changeRow.id },
+      { organizationId: organization.id, changeEventId: changeRow.id },
+    ])
     .returning();
-  const divergenceCaseRow = must(caseRow, "divergence case");
+  const divergenceCaseRow = must(caseRows[0], "primary divergence case");
+  const secondDivergenceCaseRow = must(caseRows[1], "second divergence case");
+  const thirdDivergenceCaseRow = must(caseRows[2], "third divergence case");
 
-  const [caseVersion] = await database
+  const caseVersions = await database
     .insert(divergenceCaseVersions)
-    .values({
-      organizationId: organization.id,
-      caseId: divergenceCaseRow.id,
-      changeEventVersionId: changeVersionRow.id,
-      versionLabel: "v1",
-      scenario:
-        "A patient has a fictional coagulation marker of 60 and no exclusions.",
-      oldAnswer: "Start anticoagulation.",
-      newAnswer: "Hold anticoagulation.",
-      rationale: "60 clears the old 52 threshold but not the new 68 threshold.",
-      oldCitation: {
-        sourceVersionId: oldSourceVersion.id,
-        quote: "at least 52",
+    .values([
+      {
+        organizationId: organization.id,
+        caseId: divergenceCaseRow.id,
+        changeEventVersionId: changeVersionRow.id,
+        versionLabel: "v1",
+        scenario:
+          "A patient has a fictional coagulation marker of 60 and no exclusions.",
+        oldAnswer: "Start anticoagulation.",
+        newAnswer: "Hold anticoagulation.",
+        rationale:
+          "60 clears the old 52 threshold but not the new 68 threshold.",
+        oldCitation: {
+          sourceVersionId: oldSourceVersion.id,
+          quote: "at least 52",
+        },
+        newCitation: {
+          sourceVersionId: newSourceVersion.id,
+          quote: "at least 68",
+        },
+        status: "approved",
+        authoredByMembershipId: actorIds.get("change-owner")!,
+        approvedByMembershipId: actorIds.get("case-approver"),
+        approvedAt: new Date(),
+        lockedAt: new Date(),
+        lockedByMembershipId: actorIds.get("case-approver"),
       },
-      newCitation: {
-        sourceVersionId: newSourceVersion.id,
-        quote: "at least 68",
+      {
+        organizationId: organization.id,
+        caseId: secondDivergenceCaseRow.id,
+        changeEventVersionId: changeVersionRow.id,
+        versionLabel: "v1",
+        scenario:
+          "A patient has a fictional coagulation marker of 65 and no exclusions.",
+        oldAnswer: "Start anticoagulation.",
+        newAnswer: "Hold anticoagulation.",
+        rationale:
+          "65 remains above the retired threshold and below the current threshold.",
+        oldCitation: {
+          sourceVersionId: oldSourceVersion.id,
+          quote: "at least 52",
+        },
+        newCitation: {
+          sourceVersionId: newSourceVersion.id,
+          quote: "at least 68",
+        },
+        status: "draft",
+        authoredByMembershipId: actorIds.get("change-owner")!,
       },
-      status: "approved",
-      authoredByMembershipId: actorIds.get("change-owner")!,
-      approvedByMembershipId: actorIds.get("case-approver"),
-      approvedAt: new Date(),
-      lockedAt: new Date(),
-      lockedByMembershipId: actorIds.get("case-approver"),
-    })
+      {
+        organizationId: organization.id,
+        caseId: thirdDivergenceCaseRow.id,
+        changeEventVersionId: changeVersionRow.id,
+        versionLabel: "v1",
+        scenario:
+          "A patient has a fictional coagulation marker of 67 with an unresolved exclusion.",
+        oldAnswer:
+          "Apply the retired threshold only after resolving the exclusion.",
+        newAnswer:
+          "Hold treatment and resolve the exclusion before reassessment.",
+        rationale:
+          "The threshold changes the default decision, while the exclusion preserves a visible ambiguity boundary.",
+        oldCitation: {
+          sourceVersionId: oldSourceVersion.id,
+          quote: "at least 52",
+        },
+        newCitation: {
+          sourceVersionId: newSourceVersion.id,
+          quote: "at least 68",
+        },
+        ambiguityNote:
+          "This case is intentionally retained as an adversarial draft and cannot be approved.",
+        status: "draft",
+        authoredByMembershipId: actorIds.get("change-owner")!,
+      },
+    ])
     .returning();
-  const caseVersionRow = must(caseVersion, "divergence case version");
+  const caseVersionRow = must(
+    caseVersions[0],
+    "approved divergence case version",
+  );
 
   const seededPeople = await database
     .select()

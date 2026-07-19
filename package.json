@@ -36,6 +36,7 @@
     "inngest:dev": "pnpm dlx inngest-cli@latest dev -u http://localhost:3000/api/inngest",
     "eval": "vitest run tests/evals",
     "verify:live-extraction": "node --conditions=react-server --import tsx scripts/verify-live-extraction.ts",
+    "verify:live-embedding": "node --conditions=react-server --import tsx scripts/verify-live-embedding.ts",
     "prepare": "husky"
   },
   "dependencies": {
