@@ -1,15 +1,12 @@
-import { getSignInUrl } from "@workos-inc/authkit-nextjs";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { ProductMark } from "@/components/product/product-mark";
 import { Button } from "@/components/ui/button";
-import { isWorkOSConfigured } from "@/lib/env/server";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default async function SignInPage({
+export default async function SignInUnavailablePage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -22,10 +19,6 @@ export default async function SignInPage({
     requestedPath?.startsWith("/") && !requestedPath.startsWith("//")
       ? requestedPath
       : "/app";
-
-  if (isWorkOSConfigured()) {
-    redirect(await getSignInUrl({ returnTo }));
-  }
 
   return (
     <main className="grid min-h-dvh place-items-center p-6 sm:p-10">

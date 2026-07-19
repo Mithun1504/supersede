@@ -168,7 +168,7 @@ test("unconfigured sign-in renders a public-demo page instead of problem JSON", 
 
   const callbackResponse = await page.goto("/auth/callback");
   expect(callbackResponse?.status()).toBe(200);
-  await expect(page).toHaveURL(/\/sign-in$/);
+  await expect(page).toHaveURL(/\/sign-in\/unavailable/);
   await expect(
     page.getByRole("heading", {
       name: "Live sign-in is unavailable in this demo",
