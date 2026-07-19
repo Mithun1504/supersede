@@ -135,6 +135,14 @@ BEGIN
     RAISE EXCEPTION 'non-owner runtime role is missing or over-privileged';
   END IF;
 
+  IF NOT (
+    has_table_privilege('supersede_app', 'professional_role', 'SELECT')
+    AND has_table_privilege('supersede_app', 'professional_role', 'INSERT')
+    AND has_table_privilege('supersede_app', 'professional_role', 'UPDATE')
+  ) THEN
+    RAISE EXCEPTION 'professional role runtime grants are missing';
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1
     FROM pg_constraint
