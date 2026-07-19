@@ -117,6 +117,13 @@ async function upgradeExistingSeed(
     )
     .limit(1);
   if (!activeChange) return;
+  await database
+    .update(changeEvents)
+    .set({
+      createdAt: walkthroughLockedAt,
+      updatedAt: walkthroughLockedAt,
+    })
+    .where(eq(changeEvents.id, activeChange.changeEventId));
   const [existing] = await database
     .select({ value: count() })
     .from(divergenceCaseVersions)
@@ -658,6 +665,8 @@ async function seed() {
       enteredByMembershipId: actorIds.get("change-owner")!,
       validatedByMembershipId: actorIds.get("validator"),
       validatedAt: walkthroughLockedAt,
+      createdAt: walkthroughLockedAt,
+      updatedAt: walkthroughLockedAt,
     })
     .returning();
   const changeRow = must(change, "change event");
