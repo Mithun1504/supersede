@@ -23,6 +23,10 @@ function formatToken(value: string) {
   return value.replace(/[._]/g, " ");
 }
 
+function pluralize(count: number, singular: string) {
+  return `${count} ${singular}${count === 1 ? "" : "s"}`;
+}
+
 export default async function AuditPage() {
   const data = await getProductWorkspace();
   const governed = data.viewer.authenticated && data.viewer.organizationReady;
@@ -42,7 +46,7 @@ export default async function AuditPage() {
   const timelineLabel =
     data.timeline.length === 100
       ? "Latest 100 events"
-      : `${data.timeline.length} events`;
+      : pluralize(data.timeline.length, "event");
   const stages = [
     ["Assigned", data.probes.length, "governed assignments"],
     [
@@ -132,7 +136,7 @@ export default async function AuditPage() {
           <Surface className="min-w-0 overflow-hidden">
             <SectionTitle
               title="Append-only events"
-              detail={`${timelineLabel} · ${data.approvals.length} approval records · ${data.reports.length} stored bundles`}
+              detail={`${timelineLabel} · ${pluralize(data.approvals.length, "approval record")} · ${pluralize(data.reports.length, "stored bundle")}`}
             />
             <div
               className="scrollbar-subtle focus-visible:ring-ring overflow-x-auto focus-visible:ring-3 focus-visible:outline-none"

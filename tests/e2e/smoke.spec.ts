@@ -283,6 +283,11 @@ test("public audit bundle is locked, reproducible, and checksummed in the UI", a
 
   await page.goto("/app/audit");
   await expect(page.getByText(digest, { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("2 events · 2 approval records · 1 stored bundle", {
+      exact: true,
+    }),
+  ).toBeVisible();
 });
 
 test("crawler metadata is available", async ({ request }) => {
