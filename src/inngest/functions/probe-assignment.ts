@@ -23,7 +23,7 @@ export const probeAssignmentWorkflow = inngest.createFunction(
     name: "Deliver a governed probe assignment",
     triggers: { event: "probe.assigned" },
     retries: 4,
-    concurrency: { limit: 8, key: "event.data.organizationId" },
+    concurrency: { limit: 5, key: "event.data.organizationId" },
   },
   async ({ event, step, runId }) => {
     const payload = payloadSchema.parse(event.data);
