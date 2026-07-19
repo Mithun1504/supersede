@@ -166,9 +166,10 @@ test("unconfigured sign-in renders a public-demo page instead of problem JSON", 
 });
 
 test("crawler metadata is available", async ({ request }) => {
-  const [robots, sitemap] = await Promise.all([
+  const [robots, sitemap, favicon] = await Promise.all([
     request.get("/robots.txt"),
     request.get("/sitemap.xml"),
+    request.get("/favicon.ico"),
   ]);
 
   expect(robots.status()).toBe(200);
@@ -179,6 +180,7 @@ test("crawler metadata is available", async ({ request }) => {
   expect(await sitemap.text()).toContain(
     "https://supersede-bay.vercel.app/app/walkthrough",
   );
+  expect(favicon.status()).toBeLessThan(500);
 });
 
 test("collapsed workflow rail keeps readable route abbreviations", async ({

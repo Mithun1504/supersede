@@ -31,10 +31,7 @@ export default async function RootLayout({
   // A per-request CSP nonce can only be attached to dynamically rendered
   // framework scripts. Static shells would ship scripts without the nonce.
   await connection();
-  const nonce = (await headers()).get("x-nonce");
-  if (!nonce) {
-    throw new Error("CSP nonce is missing.");
-  }
+  const nonce = (await headers()).get("x-nonce") ?? "";
 
   return (
     <html
