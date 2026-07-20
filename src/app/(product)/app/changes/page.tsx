@@ -10,6 +10,7 @@ import { SectionTitle } from "@/components/product/product-shell";
 import { AuthenticatedProductShell } from "@/components/product/product-shell-auth";
 import { StatusPill } from "@/components/product/status";
 import { Button } from "@/components/ui/button";
+import { actorsAreDistinct } from "@/lib/security/separation-of-duties";
 import { getProductWorkspace, type ProductWorkspace } from "@/modules/product";
 
 export const metadata: Metadata = { title: "Source Change" };
@@ -53,6 +54,12 @@ export default async function ChangesPage() {
             <ChangeDossier
               change={change}
               canValidate={data.viewer.roles.includes("change_validator")}
+              isChangeOwner={
+                !actorsAreDistinct(
+                  data.viewer.membershipId,
+                  change.enteredByMembershipId,
+                )
+              }
               key={change.versionId}
             />
           ))
@@ -73,9 +80,11 @@ export default async function ChangesPage() {
 function ChangeDossier({
   change,
   canValidate,
+  isChangeOwner,
 }: {
   change: Change;
   canValidate: boolean;
+  isChangeOwner: boolean;
 }) {
   const governance = getGovernanceState(change);
 
@@ -93,10 +102,28 @@ function ChangeDossier({
               {pluralize(change.impactCount, "impact record")}
             </p>
             {canValidate && !change.validatedAt ? (
-              <MutationButton
-                endpoint={`/api/v1/workflow/changes/${change.id}/versions/${change.versionId}/validate`}
-                label="Validate and lock"
-              />
+              isChangeOwner ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    aria-describedby={`validation-reason-${change.versionId}`}
+                    disabled
+                    type="button"
+                  >
+                    Validate and lock
+                  </Button>
+                  <p
+                    className="text-muted-foreground max-w-64 text-xs leading-5"
+                    id={`validation-reason-${change.versionId}`}
+                  >
+                    A different signed-in reviewer must validate this change.
+                  </p>
+                </div>
+              ) : (
+                <MutationButton
+                  endpoint={`/api/v1/workflow/changes/${change.id}/versions/${change.versionId}/validate`}
+                  label="Validate and lock"
+                />
+              )
             ) : null}
           </div>
         </footer>

@@ -17,6 +17,9 @@ const publicRoutes = [
 ] as const;
 
 const authSecret = process.env.E2E_AUTH_SECRET ?? "supersede-e2e-local-secret";
+const appOrigin =
+  process.env.PLAYWRIGHT_BASE_URL ??
+  `http://localhost:${process.env.PLAYWRIGHT_PORT ?? "3119"}`;
 
 test.describe("public release surfaces", () => {
   for (const [path, heading] of publicRoutes) {
@@ -137,6 +140,72 @@ test("an authenticated user without a WorkOS organization joins the sandbox", as
     }
   } finally {
     await context.close();
+  }
+});
+
+test("a change owner must hand validation to another sandbox member", async ({
+  browser,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Shared server path.");
+  const ownerContext = await browser.newContext({
+    extraHTTPHeaders: {
+      "x-supersede-e2e-key": authSecret,
+      "x-supersede-e2e-user": "user_self_validation_owner",
+      "x-supersede-e2e-name": "Self validation owner",
+    },
+  });
+  const ownerPage = await ownerContext.newPage();
+  const versionLabel = `self-validation-${String(Date.now())}`;
+
+  try {
+    await ownerPage.goto(`${appOrigin}/app/changes`);
+    await ownerPage.getByLabel("Version label").fill(versionLabel);
+    await ownerPage
+      .getByLabel("Affected population")
+      .fill("Fictional adult inpatient population");
+    await ownerPage
+      .getByLabel("Retired rule")
+      .fill("Escalate when the fictional marker is at least 68.");
+    await ownerPage
+      .getByLabel("Replacement rule")
+      .fill("Escalate when the fictional marker is at least 72.");
+    await ownerPage
+      .getByRole("button", { name: "Record source change" })
+      .click();
+
+    const ownerCard = ownerPage
+      .locator("article")
+      .filter({ hasText: versionLabel });
+    await expect(
+      ownerCard.getByRole("button", { name: "Validate and lock" }),
+    ).toBeDisabled();
+    await expect(
+      ownerCard.getByText(
+        "A different signed-in reviewer must validate this change.",
+      ),
+    ).toBeVisible();
+
+    const reviewerContext = await browser.newContext({
+      extraHTTPHeaders: {
+        "x-supersede-e2e-key": authSecret,
+        "x-supersede-e2e-user": "user_independent_validator",
+        "x-supersede-e2e-name": "Independent validator",
+      },
+    });
+    const reviewerPage = await reviewerContext.newPage();
+    try {
+      await reviewerPage.goto(`${appOrigin}/app/changes`);
+      await expect(
+        reviewerPage
+          .locator("article")
+          .filter({ hasText: versionLabel })
+          .getByRole("button", { name: "Validate and lock" }),
+      ).toBeEnabled();
+    } finally {
+      await reviewerContext.close();
+    }
+  } finally {
+    await ownerContext.close();
   }
 });
 

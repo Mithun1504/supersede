@@ -182,6 +182,7 @@ type ReportRow = {
 type ChangeListRow = {
   changeEventId: string;
   changeEventVersionId: string;
+  enteredByMembershipId: string;
   versionLabel: string;
   sourceTitle: string;
   oldRule: string;
@@ -360,6 +361,7 @@ export type ProductWorkspace = {
   changes: Array<{
     id: string;
     versionId: string;
+    enteredByMembershipId: string;
     reference: string;
     versionLabel: string;
     sourceTitle: string;
@@ -713,6 +715,7 @@ async function loadWorkspace(
     select
       ce.id::text as "changeEventId",
       cev.id::text as "changeEventVersionId",
+      ce.entered_by_membership_id::text as "enteredByMembershipId",
       cev.version_label as "versionLabel",
       s.title as "sourceTitle",
       cev.old_rule as "oldRule",
@@ -903,6 +906,7 @@ async function loadWorkspace(
     changes: changeListResult.rows.map((row) => ({
       id: row.changeEventId,
       versionId: row.changeEventVersionId,
+      enteredByMembershipId: row.enteredByMembershipId,
       reference: reference(row.changeEventId),
       versionLabel: row.versionLabel,
       sourceTitle: row.sourceTitle,
