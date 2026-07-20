@@ -951,7 +951,7 @@ export const getProductWorkspace = cache(
 async function resolveWorkspaceTenant(
   auth: Awaited<ReturnType<typeof getOptionalAuthContext>>,
 ) {
-  if (!auth?.workosOrganizationId) {
+  if (!auth) {
     return {
       organizationReady: false,
       tenant: await resolvePublicWalkthroughContext(),

@@ -18,14 +18,6 @@ export async function requireRequestAuthentication() {
 
 export async function requireTenantActor() {
   const auth = await requireRequestAuthentication();
-  if (!auth.workosOrganizationId) {
-    throw new AppError({
-      code: "FORBIDDEN",
-      message: "An organization tenant is required.",
-      status: 403,
-    });
-  }
-
   const tenant = await resolveActorContext({
     workosOrganizationId: auth.workosOrganizationId,
     workosUserId: auth.workosUserId,

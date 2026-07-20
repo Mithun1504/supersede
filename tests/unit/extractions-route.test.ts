@@ -169,7 +169,7 @@ describe("POST /api/v1/extractions", () => {
     expect(runStructuredOpenAiTask).not.toHaveBeenCalled();
   });
 
-  it("requires an organization tenant", async () => {
+  it("provisions an authenticated user without a WorkOS organization", async () => {
     vi.mocked(getOptionalAuthContext).mockResolvedValue({
       ...authContext,
       workosOrganizationId: null,
@@ -179,8 +179,11 @@ describe("POST /api/v1/extractions", () => {
       request({ headers: { "Idempotency-Key": "idem-3" } }),
     );
 
-    expect(response.status).toBe(403);
-    expect(runStructuredOpenAiTask).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(resolveActorContext).toHaveBeenCalledWith({
+      ...authContext,
+      workosOrganizationId: null,
+    });
   });
 
   it("requires authentication", async () => {

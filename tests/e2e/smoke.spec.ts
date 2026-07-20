@@ -98,7 +98,7 @@ test("an authenticated user outside the sandbox gets the public workspace", asyn
   }
 });
 
-test("a verified member of the walkthrough organization gets a governed workspace", async ({
+test("an authenticated user without a WorkOS organization joins the sandbox", async ({
   browser,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "Shared server path.");
@@ -106,7 +106,6 @@ test("a verified member of the walkthrough organization gets a governed workspac
     extraHTTPHeaders: {
       "x-supersede-e2e-key": authSecret,
       "x-supersede-e2e-user": "user_new_walkthrough_member",
-      "x-supersede-e2e-organization": "org_demo_supersede",
       "x-supersede-e2e-name": "New walkthrough member",
     },
   });

@@ -16,13 +16,13 @@ export async function getOptionalAuthContext(): Promise<AuthContext | null> {
   const env = getServerEnv();
   if (env.NODE_ENV !== "production" && env.E2E_AUTH_SECRET) {
     const requestHeaders = await headers();
+    const workosUserId = requestHeaders.get("x-supersede-e2e-user");
     if (
       requestHeaders.get("x-supersede-e2e-key") === env.E2E_AUTH_SECRET &&
-      requestHeaders.get("x-supersede-e2e-user") &&
-      requestHeaders.get("x-supersede-e2e-organization")
+      workosUserId
     ) {
       return {
-        workosUserId: requestHeaders.get("x-supersede-e2e-user")!,
+        workosUserId,
         workosOrganizationId: requestHeaders.get(
           "x-supersede-e2e-organization",
         ),

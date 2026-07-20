@@ -18,6 +18,7 @@ DECLARE
   walkthrough_org_id uuid := gen_random_uuid();
   public_walkthrough_org_id uuid := gen_random_uuid();
   walkthrough_member_id uuid;
+  organizationless_walkthrough_member_id uuid;
   source_id uuid := gen_random_uuid();
   old_source_version_id uuid := gen_random_uuid();
   new_source_version_id uuid := gen_random_uuid();
@@ -289,6 +290,10 @@ BEGIN
     RAISE EXCEPTION 'walkthrough provisioning function is not secured for runtime use';
   END IF;
 
+  UPDATE organization
+  SET walkthrough_provisioning_enabled = false
+  WHERE walkthrough_provisioning_enabled = true;
+
   INSERT INTO organization (
     id,
     workos_organization_id,
@@ -324,6 +329,19 @@ BEGIN
 
   IF walkthrough_member_id IS NULL OR walkthrough_role_count <> 6 THEN
     RAISE EXCEPTION 'walkthrough actor was not provisioned with demo workflow roles';
+  END IF;
+
+  SELECT membership_id
+  INTO organizationless_walkthrough_member_id
+  FROM app.provision_walkthrough_actor(
+    NULL,
+    'user_test_organizationless',
+    'organizationless@example.test',
+    'Organizationless User'
+  );
+
+  IF organizationless_walkthrough_member_id IS NULL THEN
+    RAISE EXCEPTION 'organizationless walkthrough actor was not provisioned into the sandbox';
   END IF;
 
   INSERT INTO organization (
