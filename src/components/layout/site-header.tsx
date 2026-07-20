@@ -31,7 +31,7 @@ export function SiteHeader() {
             className="text-muted-foreground hover:text-foreground focus-visible:ring-ring text-sm font-bold transition-colors duration-150 focus-visible:ring-3"
             href="/#method"
           >
-            Method
+            How it works
           </Link>
           <Link
             className="text-muted-foreground hover:text-foreground focus-visible:ring-ring text-sm font-bold transition-colors duration-150 focus-visible:ring-3"
@@ -46,7 +46,7 @@ export function SiteHeader() {
             <ThemeToggle />
           </span>
           <Button asChild size="sm">
-            <Link href="/app">Open workspace</Link>
+            <Link href="/app/walkthrough">Explore public case</Link>
           </Button>
         </div>
       </div>

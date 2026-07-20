@@ -4,7 +4,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type APIResponse, type Page } from "@playwright/test";
 
 const publicRoutes = [
-  ["/", "When the rule changes, show what changed with it."],
+  ["/", "Trace a changed rule to every affected decision."],
   ["/app", "Control room"],
   ["/app/review", "Evidence intake"],
   ["/app/graph", "Dependency map"],

@@ -1,39 +1,29 @@
-| Gap                                  | Current reality                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| _Governed workflow UI_               | Change entry/validation, edge review, artifact triage-to-publish, case approval/release, probe response, and remediation APIs exist, but the current pages are predominantly read-only inspectors. The docs require these actions in the actual demo flow. [PRD](/Users/nishchay/code/supersede/docs/PRD.md:128), [required slice](/Users/nishchay/code/supersede/docs/TECH_STACK.md:627), [read-only remediation UI](/Users/nishchay/code/supersede/src/components/product/probe-dashboard.tsx:188) |
-| _Exact five-minute demo_             | The seed contains one divergence case rather than three, and the browser test only navigates pre-seeded state. It does not generate/approve cases or perform the R.N. Adams probe, correction, and recheck journey. [seed](/Users/nishchay/code/supersede/scripts/seed.ts:628), [Playwright path](/Users/nishchay/code/supersede/tests/e2e/smoke.spec.ts:160), [documented requirement](/Users/nishchay/code/supersede/docs/PRD.md:206)                                                              |
-| _Embedding and retrieval pipeline_   | Gemini/pgvector is scaffolding only. A Gemini client and chunk metadata exist, but there is no embedding call, vector column/index, lexical index, hybrid retrieval, or live chunk-and-index pipeline. [specified pipeline](/Users/nishchay/code/supersede/docs/TECH_STACK.md:286), [retrieval contract](/Users/nishchay/code/supersede/docs/TECH_STACK.md:302), [current chunk schema](/Users/nishchay/code/supersede/src/db/schema/domain.ts:288)                                                  |
-| _Background workflows and progress_  | The docs require seven domain workflows plus authenticated SSE with polling fallback. The app registers four Inngest functions and provides polling only; several required workflows run synchronously or are absent. [required workflows](/Users/nishchay/code/supersede/docs/TECH_STACK.md:327), [registered functions](/Users/nishchay/code/supersede/src/inngest/functions/index.ts:1), [polling implementation](/Users/nishchay/code/supersede/src/components/product/realtime-refresh.tsx:6)   |
-| _Authenticated integration coverage_ | Route tests mock authentication and transactional services, while Playwright tests anonymous rejection and seeded read-only screens. There is no automated authenticated browser-to-database success journey for the governed mutations. [mocked route tests](/Users/nishchay/code/supersede/tests/unit/workflow-routes.test.ts:27), [current E2E coverage](/Users/nishchay/code/supersede/tests/e2e/smoke.spec.ts:63)                                                                               |
-| _Live GPT-5.6 release gate_          | Implemented, but still explicitly unverified because the usable OpenAI credential was unavailable. This remains a release blocker rather than a normal unit-test gap. [QA status](/Users/nishchay/code/supersede/docs/qa/2026-07-15-in-app-browser-supersede-qa.md:151), [release requirement](/Users/nishchay/code/supersede/README.md:90)                                                                                                                                                          |
-| _AI evaluation gate_                 | Current evals test schemas, parsers, quotes, and deterministic policies. The documented labeled/adversarial datasets and measured precision, citation validity, ambiguity, grading agreement, and reviewer effort do not exist. [required evaluation](/Users/nishchay/code/supersede/docs/TECH_STACK.md:468), [current deterministic eval](/Users/nishchay/code/supersede/tests/evals/governed-ai.test.ts:16)                                                                                        |
+# Pending release work
 
-I reran the current deterministic suite: _19 files, 64 tests passed_. That confirms the existing tests are green, not that the gaps above are covered.
+The Displace workflow, authenticated browser journey, retrieval pipeline,
+background workflows, and deterministic AI evaluation gates are implemented.
+See [gap-closure verification](./qa/2026-07-18-gap-closure.md).
 
-Postmark, Slack, xAPI/SCORM, HRIS beyond seed, advanced OCR, enterprise SAML/MFA, full telemetry, watcher feeds, and similar items are explicitly deferred, so I would not count those as implementation defects. [Deferred scope](/Users/nishchay/code/supersede/docs/TECH_STACK.md:640)
+## Release blockers
 
-## Implementation reconciliation — reverified 2026-07-19
+| Gate               | Required evidence                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| GPT-5.6 extraction | `pnpm verify:live-extraction` passes with the release OpenAI credential                  |
+| Gemini embedding   | `pnpm verify:live-embedding` passes with the release Gemini credential                   |
+| Hosted environment | WorkOS, PostgreSQL, storage, Inngest, and readiness checks pass in the target deployment |
 
-Every implementation gap above has been addressed. The detailed evidence and
-verification record is in
-[`docs/qa/2026-07-18-gap-closure.md`](qa/2026-07-18-gap-closure.md).
+The verifier commands fail closed when credentials are missing. Deterministic
+fixtures do not satisfy these gates.
 
-| Gap                                | Resolution                                                                                                                                                                                                                                                                                                                            |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governed workflow UI               | Complete: every governed mutation in the required slice is exposed through role-aware product UI, including separation-of-duties states and persisted error feedback.                                                                                                                                                                 |
-| Exact five-minute demo             | Complete: the idempotent seed now has three cases and the required R.N. Adams data; the authenticated browser journey creates/approves three cases and performs response, correction, remediation, and different-case rechecks.                                                                                                       |
-| Embedding and retrieval pipeline   | Complete: exact-offset chunking, Gemini document/query embeddings, pgvector/lexical storage and indexes, version-lock filtering, hybrid reciprocal-rank retrieval, and an authenticated, rate-limited `/api/v1/retrieval` surface are implemented. The explicit live Gemini check remains fail-closed until a credential is supplied. |
-| Background workflows and progress  | Complete: all required domain workflows are registered with persisted run/step projection, authenticated SSE, keep-alives, bounded connections, and polling fallback.                                                                                                                                                                 |
-| Authenticated integration coverage | Complete: Playwright now drives edge review, artifact lifecycle, three case approvals, case release, probe response, remediation/rechecks, change entry/validation, and report request through authenticated UI controls into real services and Postgres.                                                                             |
-| Live GPT-5.6 release gate          | Implementation complete; external sign-off blocked only by the missing `OPENAI_API_KEY` in this environment. `pnpm verify:live-extraction` fails closed and must pass with the release credential before deployment.                                                                                                                  |
-| AI evaluation gate                 | Complete: versioned labeled/adversarial datasets and measurable quality/reviewer-effort thresholds are enforced by `pnpm eval`.                                                                                                                                                                                                       |
+## Deferred scope
 
-The originally stated deferred scope remains deferred and was not silently
-expanded into this implementation.
+- Automated source watchers
+- Postmark and Slack delivery
+- xAPI/SCORM export
+- HRIS import beyond the seed
+- Advanced OCR
+- Enterprise SAML and MFA rollout
+- Full telemetry and external uptime monitoring
+- Real clinical, patient, or employee data
 
-The 2026-07-19 re-verification passed the deterministic quality, evaluation,
-production-build, dependency-audit, and full browser/database gates. The only
-outstanding release operations are the explicitly external live-provider
-sign-offs: this environment has no `OPENAI_API_KEY` or `GEMINI_API_KEY`, and
-both verification commands correctly fail closed until those credentials are
-provided.
+These are product follow-ups, not blockers for the approved hackathon slice.

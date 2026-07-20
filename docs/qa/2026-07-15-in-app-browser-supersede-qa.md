@@ -1,158 +1,79 @@
-# Supersede release QA — July 15, 2026
+# Release QA: 2026-07-15
 
-## Scope
+## Environment
 
-In-app Browser release sweep of every public product route, public/auth
-boundaries, responsive behavior, keyboard structure, downloads, not-found and
-error states, plus live PostgreSQL, MinIO, Inngest, extraction, governed
-workflow, and audit-export integration gates.
+| Service           | Target                                 |
+| ----------------- | -------------------------------------- |
+| App               | `http://localhost:3119`                |
+| PostgreSQL        | `supersede-postgres-1`                 |
+| MinIO             | API `9010`, console `9011`             |
+| Inngest           | `http://localhost:8288`                |
+| WorkOS            | existing Supersede staging application |
+| Public deployment | `https://supersede-bay.vercel.app`     |
 
-## Environments
+Ports used by unrelated projects were left untouched.
 
-- Local app: `http://localhost:3119`
-- PostgreSQL: `supersede-postgres-1`
-- Supersede MinIO: API `9010`, console `9011`
-- Inngest dev server: `http://localhost:8288`
-- WorkOS: existing `supersede` staging project and application only
-- Public deployment: `https://supersede-bay.vercel.app`
+## Initial release gates
 
-Ports `3000`, `3001`, and `9000` belonged to unrelated local projects and were
-left untouched. Supersede's Compose ports are now configurable so local QA does
-not require stopping another project.
+| Gate                                | Result                                                        |
+| ----------------------------------- | ------------------------------------------------------------- |
+| `pnpm check`                        | Passed: 16 files, 55 tests                                    |
+| Production build                    | Passed on Next.js 16.2.10                                     |
+| SQL invariants                      | Passed in containerized `psql`                                |
+| Migration and seed                  | Passed through migration `0007`                               |
+| Public routes and responsive layout | Passed at 390, 768, 1280, and 1440 px                         |
+| Public write boundary               | Anonymous writes returned structured `401` responses          |
+| Signed upload and parsing           | Passed for TXT and PDF                                        |
+| Upload limits                       | 25 MB enforced; scanned PDF rejected with explicit OCR status |
+| Inngest                             | Healthy; four functions registered; unsigned calls rejected   |
+| Rate limits and CSRF                | Passed                                                        |
+| Standard audit storage              | Passed with SHA-256 and `worm: false`                         |
+| Object Lock                         | Unavailable and represented accurately                        |
+| WorkOS login and tenant mapping     | Passed                                                        |
+| Live GPT-5.6 extraction             | Blocked by missing `OPENAI_API_KEY`                           |
+| Production publish                  | Two Vercel uploads stopped in `UNKNOWN` before build          |
 
-## Release gates
+All public product routes rendered expected seeded data without console errors
+or page overflow. The mobile navigation stayed within its scroll container.
+Skip navigation and the custom 404 worked.
 
-| Gate                              | Result                   | Evidence                                                                                                                          |
-| --------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| Formatting, lint, type safety     | Pass                     | `pnpm check`                                                                                                                      |
-| Unit and governed-AI tests        | Pass                     | 16 files, 55 tests                                                                                                                |
-| Production build                  | Pass                     | Next.js 16.2.10, 26 dynamic pages/routes generated                                                                                |
-| SQL invariants                    | Pass                     | `BEGIN / DO / ROLLBACK` through containerized `psql`                                                                              |
-| Database migration and seed       | Pass                     | migrations through `0007`; St. Marlowe seed present                                                                               |
-| Public route sweep                | Pass                     | All nine `/app` routes rendered expected headings without console errors or page overflow                                         |
-| Responsive behavior               | Pass                     | 390, 768, 1280, and 1440 px; no page overflow                                                                                     |
-| Walkthrough and navigation clicks | Pass                     | Walkthrough card and product-nav transitions reached the correct routes                                                           |
-| Audit download                    | Pass                     | Browser download event plus independently verified ZIP manifest/checksums                                                         |
-| Public/auth boundary              | Pass                     | Anonymous writes return structured `401 UNAUTHENTICATED` responses                                                                |
-| Signed object upload              | Pass                     | Real signed PUT and TXT/PDF parse against Supersede MinIO                                                                         |
-| Upload limits and OCR state       | Pass                     | 25 MB + 1 rejected; scanned PDF rejected with `OCR not supported yet`                                                             |
-| Durable workflow runtime          | Pass                     | Inngest dev health 200; app exposes four registered functions, including validated-change propagation; unsigned requests rejected |
-| Rate limits and CSRF              | Pass                     | Same-origin JSON tests; first 20 extraction requests accepted and 21st returned 429 policy result                                 |
-| Standard audit storage            | Pass                     | DB-backed bundle stored in MinIO, 64-char SHA-256, `worm: false`, version-scoped key                                              |
-| Object Lock                       | Correctly unavailable    | No configured S3 Object Lock bucket; UI and API do not claim WORM                                                                 |
-| WorkOS callback                   | Pass                     | `localhost:3119/auth/callback` saved on the existing Supersede staging application                                                |
-| WorkOS tenant authentication      | Pass                     | Real Google login returned through Supersede AuthKit; existing test org mapped to St. Marlowe                                     |
-| Authenticated browser boundary    | Pass                     | Real identity visible, sign-out available, tenant actor resolved; no impersonation or role switch                                 |
-| Live local GPT-5.6 extraction     | Blocked on configuration | `.env.local` has no `OPENAI_API_KEY`; deterministic fallback cannot satisfy the production API                                    |
-| Operational readiness             | Correctly not ready      | Missing OpenAI and invalid short WorkOS cookie secret keep readiness non-green                                                    |
-| Production publish                | Blocked by Vercel        | Two uploads stopped in `UNKNOWN` before any build; prior healthy production remains active                                        |
+## Defects fixed
 
-## Browser route and state sweep
+1. Updated the AuthKit redirect variable to `NEXT_PUBLIC_WORKOS_REDIRECT_URI`.
+2. Treated WorkOS cookie secrets below 32 characters as unconfigured.
+3. Made MinIO ports and credentials configurable.
+4. Captured PDF size and SHA-256 before PDF.js detached the buffer.
+5. Removed deterministic fallback from production extraction success.
+6. Aligned the `case.approved` event contract and blocked same-case rechecks.
+7. Connected release, assignment, grading, remediation, and recheck state.
+8. Connected audit generation to tenant evidence and storage.
+9. Normalized PostgreSQL timestamps and serialized transaction queries.
+10. Centralized durable quotas and JSON CSRF checks.
+11. Exposed authenticated identity and returned explicit extraction `503` errors.
 
-Verified `/app`, `/app/review`, `/app/graph`, `/app/changes`,
-`/app/blast-radius`, `/app/cases`, `/app/probes`, `/app/audit`, and
-`/app/walkthrough`. Each settled route had one product main landmark, the
-expected heading, fictional seeded data, a visible read-only identity, and no
-page-level horizontal overflow. Anonymous mutation controls stayed disabled or
-returned a clean authentication problem. The unknown route rendered the custom
-404 with a return-home action.
+## Status on July 15
 
-The mobile product rail scrolls within its own container rather than widening
-the page. The skip link has a real `#content` target and that target is
-programmatically focusable.
+Local code, database, storage, workflow, auth, and standard export gates passed.
+Production readiness remained blocked by live OpenAI configuration and Vercel
+deployment. The previous healthy deployment stayed active.
 
-## Defects found and resolved in this pass
+## Demo hardening: July 17
 
-1. AuthKit v4 reads `NEXT_PUBLIC_WORKOS_REDIRECT_URI`; the project used the
-   obsolete unprefixed name and sent an empty callback.
-2. A present but too-short WorkOS cookie secret crashed Proxy before every
-   handler. Configuration now treats fewer than 32 characters as not ready.
-3. Local MinIO used fixed host ports and fixed credentials. Compose now supports
-   alternate ports and uses the configured R2 credentials and bucket.
-4. PDF.js detached the input byte buffer, causing parsed PDF metadata to report
-   zero bytes. Size and SHA-256 are captured before parsing.
-5. The production extraction API accepted deterministic fallback as success.
-   It now accepts live mode only; fallback remains test/disaster-recovery code.
-6. `case.approved` emitted an event shape the release handler rejected. The
-   contract now matches and overdue blocked rechecks release only with a
-   different approved case.
-7. Release authorization stopped before assignments, and probe assessment was
-   not wired. It now creates assignments, records exact grading evidence,
-   routes uncertainty to human review, and creates remediation for old-rule
-   responses without creating fake approvals.
-8. Audit export generation was not connected to tenant evidence/storage. It now
-   writes the bundle and report row, with release remaining a separate human
-   approval.
-9. Raw audit timestamps were strings in live PostgreSQL but treated as `Date`,
-   and concurrent queries reused one transaction client. The evidence boundary
-   now normalizes timestamps and runs its transaction queries sequentially.
-10. Expensive authenticated endpoints lacked durable quotas, and JSON mutation
-    parsing lacked an application-level CSRF boundary. Both are centralized and
-    tested.
-11. Product routes never surfaced the authenticated WorkOS identity, and the
-    live extraction gate turned missing OpenAI configuration into a generic 500.
-    The server shell now shows the real signed-in identity and sign-out action;
-    the extraction gate returns an explicit 503 without using fallback.
+The follow-up pass covered `/app/walkthrough` and `/app/probes` at four
+viewports, keyboard activation, public/auth boundaries, PostgreSQL traversal,
+extraction idempotency, Inngest registration, build, and audit export.
 
-## Honest release status
+Results:
 
-The code, schema, public walkthrough, local database, local object storage,
-Inngest registration, governed workflow policy, standard audit export, and the
-Supersede WorkOS login/tenant boundary are green. Production readiness must
-remain non-green until a real OpenAI key, a 32+ character WorkOS cookie
-password, and the intended production services are configured. The seeded
-walkthrough remains read-only even after authentication; stateful workflow
-endpoints use the authenticated tenant actor and cannot be replaced by actor
-impersonation. Vercel accepted two production uploads but failed before
-scheduling either build, so the previously healthy production deployment was
-left serving rather than replaced by an unverified release.
-
----
-
-# Best-of-branches demo hardening pass
-
-**Date:** July 17, 2026
-
-**Browser:** Playwright Chromium 1.61.1
-
-**Workspace:** Local seeded St. Marlowe tenant
-
-**Purpose:** Close the remote branch's useful interaction and propagation gaps without importing its stale thresholds, duplicate scheduler, vulnerable XLSX dependency, or migration scaffolding.
-
-## Routes and surfaces covered
-
-- `/app/walkthrough` at 390×844, 768×1024, 1280×720, and 1440×900.
-- `/app/probes` at the same four viewports, before and after the full scripted response, artifact correction, and recheck-scheduling rehearsal.
-- Keyboard activation of all new probe/remediation controls.
-- Anonymous extraction and all public/auth boundary smoke checks.
-- PostgreSQL traversal, persisted extraction idempotency, four-function Inngest registration, production build, and checksummed audit path.
-
-## Actions intentionally not executed
-
-- No real person, learner, or governed approval record was mutated through the public walkthrough.
-- No deployment, push, or production database mutation was performed.
-- The production OpenAI key was not copied into the repository or printed.
-
-## Findings
-
-No P0-P3 visual, accessibility, overflow, clipping, keyboard, or secret-leak findings remained on the changed surfaces. The scripted persona runner is explicitly labeled browser-only and simulated; the live extraction surface is explicitly labeled as the completion gate.
-
-## Verification evidence
-
-- `pnpm check`: 17 files, 60 tests passed.
-- SQL foundation test: `BEGIN / DO / ROLLBACK` passed through the PostgreSQL container because host `psql` is unavailable.
-- `pnpm build`: production compilation and route generation passed.
-- `pnpm test:e2e`: 30 desktop/mobile tests passed, including the complete five-minute path.
+- `pnpm check`: 17 files and 60 tests passed.
+- SQL foundation transaction passed in the PostgreSQL container.
+- `pnpm build` passed.
+- `pnpm test:e2e`: 30 tests passed.
 - `pnpm audit --prod`: no known vulnerabilities.
-- Propagation integration: reviewed source traversal produced claim, artifact, role, and six fictional-person impacts; a second run reused the completed workflow.
-- Extraction persistence integration: one verified claim version persisted; the unverified quote did not; the repeated run created no duplicate.
-- Inngest local dev registration: four functions, including `Propagate a validated ChangeEvent`.
+- Propagation produced claim, artifact, role, and six-person impacts.
+- Extraction persisted one verified claim, rejected an unverified quote, and remained idempotent.
+- Four Inngest functions registered.
 
-## Coverage gaps and prerequisites
-
-- Live GPT-5.6 verification remains blocked. Vercel lists `OPENAI_API_KEY` for production, but the pulled value is empty; local configuration also has no key. The deterministic fallback was not used.
-- Local WorkOS cookie configuration is now a valid generated 32-byte secret, and the other readiness checks are green.
-
-## Release readiness view
-
-The code and seeded five-minute demo are ready. Operational readiness remains correctly non-green only for the missing OpenAI credential; the app must not be presented as having passed the live extraction gate until that key is populated and `pnpm verify:live-extraction` succeeds.
+No P0-P3 visual, accessibility, overflow, clipping, keyboard, or secret-leak
+finding remained. Live GPT-5.6 verification was still blocked by the missing
+credential. No deployment or production mutation was performed.

@@ -1,284 +1,152 @@
-# Supersede — PRD & Spec
+# Product requirements
 
-**Track:** Education
-**One-liner:** Version control for what an organization believes. Register a
-source-of-truth change, walk the dependency graph to everything downstream of
-a dead rule — documents *and people* — retrain on exactly the delta, and
-produce the audit trail that proves the organization actually changed.
+## Summary
 
-*Rev 2 — after external review (sol, 2026-07-14): product split into two
-configurations so the pharma buyer and the hospital demo stop being one
-blurred product; audit claims restated in observable terms (assigned →
-assessed → remediated → rechecked, never "belief displaced"); approval
-workflow specified; automated watchers cut from v1; demo personas seeded,
-plus one live extraction so the graph isn't a hidden fixture.*
+Supersede tracks a changed source through every dependent claim, artifact,
+decision, remediation, and recheck. It gives reviewers an inspectable evidence
+chain and an exportable record of authorized actions.
 
-## 1. Problem
+The hackathon product is **Displace**, a fictional hospital and CME workflow.
+**Propagate** is the commercial artifact-governance configuration.
 
-Experts rarely fail from ignorance; they fail from confident outdated
-knowledge, and confidence is precisely what prevents looking things up. You
-google what you know you don't know. You never google what you're wrong and
-sure about.
+## Users
 
-Organizations have no propagation mechanism between "the source changed" and
-"everything built on it": power posing collapsed in 2015 and is still taught
-in corporate trainings; clinical guidance takes years to displace what
-clinicians learned in residency; tax preparers apply last year's thresholds
-from muscle memory. Existing tools attack fragments: retraction alerts stop
-at direct citations, compliance training assigns "re-read the policy"
-(click-through, untargeted), spaced-repetition tools strengthen memory but
-nothing *displaces* it.
+| Configuration | Buyer and user | Scope |
+| --- | --- | --- |
+| Propagate | Pharma medical affairs and promotional review teams | Sources, claims, artifacts, changes, remediation, audit |
+| Displace | Hospital CME and quality teams; assessed professionals | Propagate scope plus role exposure, decision cases, probes, remediation, and rechecks |
 
-Two gaps, one platform, two configurations: (a) nobody maintains the
-dependency graph from sources to downstream artifacts and people;
-(b) nobody retrains on the *divergence* — the cases where old and new rules
-disagree — which is the only part that needs retraining.
+Learner work must be short, specific, mobile-friendly, and dignified.
 
-## 2. Two configurations, two buyers
+## Product rules
 
-**Propagate (v1 commercial — pharma medical affairs / promotional review).**
-Artifact governance only, no people layer. Every marketing claim legally
-requires substantiation; a retracted or superseded source is regulatory
-exposure (FDA/EMA). Claims libraries are already structured — the easiest
-graph to build, an existing budget line, and deadline-shaped pain.
-Scope: graph builder + change events + blast radius + artifact remediation +
-audit trail. FRs 1–2, 4–6, 11–12.
+1. AI proposes and prioritizes. Authenticated people authorize.
+2. Every claim and dependency keeps its exact source evidence and provenance.
+3. Approved versions are immutable.
+4. Ambiguous results enter review.
+5. Reports describe observed actions and responses. They do not claim to measure belief, knowledge, or competence.
+6. Propagate tenants cannot access people or learning data.
 
-**Displace (v2 vertical — hospital CME/quality; also the hackathon demo).**
-Adds the people layer: role mapping, instinct probes, artifact-correction
-exercises, decay rechecks. Buyer: CME/quality directors under Joint
-Commission audit pressure.
-Scope: the Propagate base plus FR-3 and FRs 7–10.
+## Workflow
 
-The end users of Displace are professionals being checked. Their experience
-must be short, specific, and dignified — 10 minutes on their actual delta,
-not an hour of generic compliance video. This is the adoption make-or-break.
+### 1. Evidence intake
 
-## 3. Goals / non-goals
+- Accept TXT, Markdown, HTML, DOCX, XLSX, and text-based PDF files.
+- Extract claims and source links with exact quotes, locations, confidence, model ID, and prompt version.
+- Verify returned quotes against the source.
+- Send every extraction to review. Confidence below `0.80` receives priority.
 
-**Goals**
-- G1: Extract a claims/dependency graph from an organization's corpus with
-  per-edge confidence and quoted evidence spans, human-reviewable.
-- G2: On a source-of-truth change, produce a triaged blast-radius report —
-  load-bearing vs peripheral dependencies — within 1 day of validation.
-  Track entered-to-validated time separately so review delay remains visible.
-- G3 *(Displace)*: Generate expert-approved divergence cases (old rule ≠ new
-  rule answers) and identify which affected people **answered with the old
-  rule when assessed** — stated exactly that way. A probe measures one
-  response under one wording at one time; the product never claims to
-  measure belief.
-- G4: Emit an audit trail in observable terms: **assigned → assessed →
-  remediated → rechecked**, per person per change, with reviewer approvals
-  and version locking (§5.5). The product proves process completion and
-  assessed responses, and says so; it does not certify minds.
-- G5: Uncertainty visible everywhere; the system never silently guesses.
+### 2. Source change
 
-**Non-goals**
-- Not an LMS (integrates with one; SCORM/xAPI export) and not a course
-  authoring tool.
-- Not medical/legal advice: it flags dependency on changed sources and
-  drills the difference; professionals and their reviewers decide substance.
-- Does not grade people for punishment; reports aggregate by default,
-  individual-level visibility is a buyer-configured policy decision (works
-  councils / HR constraints in EU markets).
-- v1 has **no automated watcher feeds** (cut after review): manual
-  ChangeEvent entry by the customer's designated owner is the v1 path, and
-  it's an honest one — the differentiated loop is propagation + remediation
-  + proof, not feed coverage. Feeds return as a v2 convenience.
+- A change owner records the old rule, new rule, affected population, and source versions.
+- A different reviewer validates the change before propagation.
+- The validated version is locked.
 
-## 4. Data model
+### 3. Dependency review
 
-```
-Source(id, kind ∈ {guideline, regulation, paper, standard, internal_policy},
-       version, status ∈ {active, superseded, retracted, corrected}, effective_date)
-Claim(id, text, evidence_span, extracted_from → Artifact, supports[] → Source,
-      load_bearing_score, confidence, review_status)
-Artifact(id, kind ∈ {protocol, course, claim_library_entry, decision_doc,
-        marketing_material}, owner → Person, version_lock)
-Person(id, role, acts_on[] → Claim)          // Displace only, via role→artifact
-ChangeEvent(id, source → Source, old_version, new_version, diff_summary,
-            entered_by, validated_by)
-DivergenceCase(id, change_event, scenario, old_answer, new_answer, rationale,
-               citations{old, new}, status ∈ {draft, approved, retired},
-               approved_by, approved_at, version_lock)
-Probe(id, person, case@version, answered_with ∈ {old, new, other},
-      delivery_evidence, ts)
-Remediation(id, person, artifact_exercise, status, recheck_at, recheck_result)
-ApprovalRecord(id, actor, role, object_ref@version, action, ts)   // append-only
-```
+- Store reviewed, typed dependency edges with evidence and rationale.
+- Traverse complete paths safely through cycles, up to eight hops.
+- Classify reviewed scores at or above `0.65` as rewrite required by default.
+- Record a reason for every reviewer override.
 
-The audit trail is the join: ChangeEvent → affected Claims/Artifacts/(People)
-→ Probes → Remediations → rechecks, every step carrying its ApprovalRecord
-and version locks.
+### 4. Impact review
 
-## 5. Product surfaces & functional requirements
+- Separate load-bearing dependencies from peripheral mentions.
+- Move affected artifacts through triage, owner assignment, correction, approval, and publication.
+- Show potential role and person exposure only in Displace.
 
-### 5.1 Graph builder (Propagate + Displace)
-- FR-1: Corpus ingestion (docs, LMS content, claims libraries, wikis);
-  GPT 5.6 extracts claims + source links with quoted evidence spans and
-  confidence; below-threshold extractions queue for human review — the
-  review UI is a first-class surface with a measured reviewer-effort budget
-  (target: < 15 min review per 50 extracted claims by corpus #3).
-- FR-2: Load-bearing scoring: does the artifact survive without this claim?
-  (structural position + LLM judgment, shown with rationale).
-- FR-3 *(Displace)*: People mapping via role → artifact ("all ICU nurses act
-  on protocol P-114"), imported from HRIS/LMS. Reported everywhere as
-  **potential exposure**, never as knowledge.
+### 5. Decision cases
 
-### 5.2 Change events (both)
-- FR-4: Manual ChangeEvent entry: designated customer owner enters the
-  change; a second reviewer validates it (validated_by) before propagation
-  runs. Machine-readable diff summary: old rule / new rule / facially
-  affected population.
+- Generate cases where the old and new rules produce different decisions.
+- Store the scenario, both answers, rationale, and citations to both source versions.
+- Require expert approval before assignment.
+- Retire ambiguous cases. Never patch an approved case in place.
 
-### 5.3 Artifact remediation (both)
-- FR-5: An affected artifact moves through triage → owner assigned → corrected
-  version submitted → expert approved → published. The approved correction is
-  immutable and version-locked; every transition is audited. A human may
-  override the system's rewrite/peripheral classification only with a recorded
-  reason.
+### 6. Probe, remediation, and recheck
 
-### 5.4 Blast radius & divergence (blast radius is both; cases are Displace-gated)
-- FR-6: On validated ChangeEvent: walk the graph, produce the triaged
-  report — load-bearing dependents (rewrite required), peripheral mentions
-  (line edits), affected people via role mapping (Displace), each with
-  confidence and evidence spans.
-- FR-7: Divergence case generator: scenarios where old and new rules give
-  different answers, with rationale citing both versions. **Approval gate is
-  mandatory:** no case reaches a learner without expert sign-off; cases are
-  version-locked at approval; ambiguous cases are retired, not patched
-  in-flight (a case answered "old" only counts toward metrics if the case
-  was approved and unambiguous — see §8).
+- Deliver approved cases cold, without revealing the changed rule.
+- Record assignment, open, completion, and response evidence.
+- Classify responses as `old`, `new`, or `other` only against the approved case rationale.
+- Require `0.80` confidence for `old` or `new`; send other results to review.
+- Give an old-rule responder a realistic correction task grounded in the new source.
+- Schedule 30-day and 90-day rechecks with a different approved case.
+- Keep a recheck blocked until a suitable case exists.
 
-### 5.5 Probe → remediate → recheck (Displace)
-- FR-8: Instinct probes: approved cases delivered cold (no "the rule
-  changed!" banner), 2–4 minutes, mobile-friendly, delivery evidence
-  recorded (assigned, opened, completed). Answering with the old rule = an
-  assessed old-rule response, located to a person and a case.
-- FR-9: Remediation: correct a realistic artifact (order set, return,
-  config, claim text) with feedback citing the new source. Passive re-read
-  is never the remediation.
-- FR-10: Decay rechecks: re-probe with a *different approved case* from the
-  same divergence at 30/90 days (same-case retest measures memorization of
-  the probe, not the rule).
+### 7. Audit
 
-### 5.6 Audit & approval workflow (both — this is the product in
-regulated verticals)
-- FR-11: Audit dashboard per ChangeEvent: % artifacts updated (with version
-  locks), % affected people assigned / assessed / remediated /
-  recheck-clean. Exportable report in exactly those observable terms.
-- FR-12: Approval workflow, specified: the customer designates roles for
-  (a) ChangeEvent validation, (b) dependency-edge review, (c) divergence-
-  case approval, (d) release authorization to affected users. Every action
-  writes an append-only ApprovalRecord with authenticated actor and
-  version-locked object. Retention policy and export verification
-  (checksummed report bundles) included. Without FR-12 the word
-  "regulator-grade" is not used anywhere in the product or pitch.
+- Record every state transition as an append-only audit event.
+- Reserve approval records for human authorization.
+- Export PDF, JSON, and CSV evidence with a manifest and SHA-256 checksums.
+- Label standard object storage accurately. Claim WORM retention only after a successful S3 Object Lock write.
 
-ApprovalRecords are reserved for governed human authorization: ChangeEvent
-validation, dependency-edge acceptance/override, artifact-version approval,
-case approval/retirement, release authorization, and export release/retention
-changes. Every state transition also writes an append-only AuditEvent;
-automated processing, delivery, assessment, and scheduling are not approvals.
+## Authorization
 
-## 6. Architecture
+Initial roles:
 
-- Postgres for the graph (typed tables); pgvector for corpus retrieval;
-  object storage for source documents and report bundles.
-- Extraction, divergence generation, probe grading: GPT 5.6 with
-  schema-constrained outputs; every generated case stores both rule
-  citations; grading of free-text probe answers cites the divergence
-  rationale and routes "other/ambiguous" to human review rather than
-  forcing old/new.
-- Approval workflow + append-only ApprovalRecords + version locking from
-  v1 (§5.5).
-- Integrations: LMS export (SCORM/xAPI), HRIS import (Displace), Slack/email
-  probe delivery with delivery evidence.
+- organization administrator
+- change owner
+- change validator
+- dependency reviewer
+- case author and approver
+- release authorizer
+- auditor
+- learner
 
-## 7. Hackathon vertical slice (Displace configuration, hospital setting)
+Required separation of duties:
 
-Fictional hospital dataset: 3 protocols, 1 CME module, a claims sheet, 8
-**seeded test personas** across 2 roles (no audience volunteers — scripted
-personas with predetermined response patterns, declared as such). One planted
-change: an anticoagulation guideline tightens a threshold (modeled on a real
-guideline revision, fictional numbers).
+- change owner and validator must differ;
+- case author and approver must differ;
+- case approver and release authorizer must differ.
 
-Demo script (≈ 5 min):
-1. **Live extraction first** (so the graph is visibly not a fixture): paste
-   one protocol, watch GPT 5.6 extract three claims with quoted spans and
-   link them to sources on screen.
-2. Enter the ChangeEvent manually (the honest v1 path — say so); reviewer
-   validation click shown.
-3. Blast radius renders: protocol P-114 load-bearing (quoted span shown),
-   CME module peripheral, 6 of 8 personas potentially exposed via role —
-   confidence on every edge.
-4. Divergence generator produces 3 cases; expert-approval step shown on one
-   (approve, version-lock); show the case: same patient vignette, old rule
-   says treat, new rule says hold — both citations visible.
-5. Probes run against the seeded personas; persona "R.N. Adams" answers with
-   the old rule → assessed old-rule response flagged → artifact-correction
-   exercise (edit the order set) → passes → recheck scheduled with a
-   different case.
-6. Audit dashboard: assigned / assessed / remediated / recheck-pending, per
-   person per change, ApprovalRecords visible. The compliance-buyer money
-   shot, in honest language.
+Every governed write requires an authenticated tenant membership. Product roles
+come from PostgreSQL, never from client input or editable identity metadata.
 
-Real: extraction, graph, blast radius, divergence generation + approval
-flow, probes, audit state machine. Seeded: corpus and personas (declared).
-Manual: the ChangeEvent (which is the real v1 design, not a mock).
+## Reporting and privacy
 
-## 8. Success metrics
+- Aggregate reporting is the default.
+- Cohort breakdowns require at least five people.
+- Named results require explicit organization policy. Only the fictional demo tenant enables them.
+- All hackathon people, clinical content, responses, and outcomes are fictional.
+- Real PHI or employee data requires contractual, privacy, security, retention, and regional review.
 
-- Extraction precision on labeled corpus (per-edge, human-reviewed sample)
-  AND reviewer-effort budget (FR-1) — precision achieved by drowning
-  reviewers doesn't count.
-- ChangeEvent-to-report latency (< 1 day from validated entry).
-- % probes answering old-rule, **counted only on expert-approved,
-  post-hoc-unambiguous cases** (cases retired for ambiguity are excluded
-  retroactively). If the rate is ~0, investigate both directions: perfect
-  org or toothless cases.
-- Recheck outcomes at 90 days on *different-case* rechecks (FR-10).
-- Buyer metric: audit-report acceptance by a real compliance officer pilot;
-  for Propagate: claims-library coverage and time-to-remediation per
-  ChangeEvent.
+## Hackathon slice
 
-## 9. Risks & mitigations
+The Displace demo uses three protocols, one CME module, one claims sheet, and
+eight fictional people across two roles. One anticoagulation rule changes.
 
-| Risk | Mitigation |
-|---|---|
-| Extraction errors poison trust | Confidence + quoted spans + review queue with effort budget; approval gates on everything learner-facing |
-| Feels like surveillance to professionals | Aggregate-by-default; short, delta-only, dignified UX; observable-terms language (assessed response, not "doesn't know") |
-| Medical/legal liability | Assistive positioning, expert sign-off gates (FR-7, FR-12), no autonomous artifact changes |
-| Two-products blur returns | Configuration split is contractual: Propagate SKU has no people layer; Displace is a separate vertical with its own onboarding |
-| Long enterprise sales cycles | Propagate wedge = pharma claims libraries (existing budget line, structured corpus, deadline pressure) |
-| Probe results over-read by buyers | Report language is generated from the observable-terms vocabulary only; "belief", "knows", "competent" are banned strings in report templates |
+The five-minute path must show:
 
-## 10. Open questions
+1. live GPT-5.6 extraction of three quote-verified claims;
+2. manual change entry and second-person validation;
+3. the reviewed path to affected artifacts and six potentially exposed people;
+4. three decision cases and one approval;
+5. R.N. Adams answering with the old rule, completing correction, and receiving a different-case recheck;
+6. the observable audit state and checksummed export.
 
-- Pricing: per ChangeEvent processed, per monitored source, or per seat?
-  Split by SKU (Propagate per-library, Displace per-seat)?
-- When automated watchers return (v2): which feeds first, and does the
-  customer's validation step remain mandatory (recommended: yes)?
-- How much of Boundary Case Atlas's mechanic (find the flipping assumption)
-  becomes a learner-facing exercise type vs internal case-gen machinery?
+The corpus and people are seeded and labeled. The source change is manual by
+design. Live extraction is a completion gate. Deterministic fallback is only
+for tests and disaster recovery.
 
-## 11. Locked v1 decisions (2026-07-15)
+## Success measures
 
-- Reporting is aggregate by default with a minimum cohort of five. Named
-  results require an explicit organization policy; the fictional demo tenant
-  enables it.
-- Extraction confidence 0.80 separates the normal and low-confidence review
-  queues. Exact quote verification and human review remain mandatory at every
-  score.
-- Load-bearing scores at or above 0.65 default to rewrite required after edge
-  review. Reviewer overrides require an audited reason.
-- Graph traversal is cycle-safe, retains full paths, and stops at eight hops.
-- Free-text probes classify old/new only at confidence 0.80 or higher with a
-  matched approved-case rationale; all other results enter review as `other`.
-- Change owner and validator, case author and approver, and case approver and
-  release authorizer must be distinct actors for the same governed object.
-- A due recheck without a different approved case remains visibly blocked and
-  dispatches immediately after a suitable case is approved. The original case
-  is never reused.
-- Live GPT-5.6 extraction is a completion gate. Seeded extraction is labeled
-  disaster recovery and deterministic test support, never a live substitute.
+- Extraction precision and quote validity on the labeled corpus
+- Median and p95 reviewer time, with a target below 15 minutes per 50 claims by the third corpus
+- Validation-to-impact-report time below one day
+- Old-rule response rate on approved, unambiguous cases
+- Different-case recheck outcomes at 90 days
+- Audit-report acceptance by a compliance reviewer
+
+## Excluded from v1
+
+- Automated source watchers
+- Autonomous artifact changes or case release
+- General-purpose LMS or course authoring
+- Real EHR integration
+- Punitive employee scoring
+- Claims of regulator certification
+
+## Open decisions
+
+- Pricing unit by configuration
+- First source feeds when watchers return
+- Scope of learner-facing boundary-case exercises

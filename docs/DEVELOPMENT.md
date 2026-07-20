@@ -1,50 +1,50 @@
-# Development guide
+# Development
 
-## Architecture at a glance
+## Architecture
 
-Supersede is a modular TypeScript monolith built with Next.js App Router. React Server Components
-perform internal reads directly through domain services. Server Actions will own first-party
-mutations; versioned Route Handlers are reserved for integrations, webhooks, streaming, and the
-public API.
+Supersede is a modular TypeScript monolith built with Next.js App Router.
+Server Components read through domain services. Route Handlers expose versioned
+integration and workflow APIs. PostgreSQL owns tenant isolation and durable
+business state.
 
-The initial infrastructure boundary is:
+Core services:
 
-- Vercel for the web application and API;
-- Neon PostgreSQL with pgvector and RLS;
-- WorkOS AuthKit for human identity and organization sessions;
-- Cloudflare R2 for working objects and S3 Object Lock for retained audit bundles;
-- OpenAI Responses API for governed generation and Gemini Embedding 2 for embeddings;
-- Inngest for retriable workflows and due-work dispatch.
+- Vercel: application and API
+- Neon PostgreSQL: relational graph, pgvector, and RLS
+- WorkOS AuthKit: identity and organization sessions
+- Cloudflare R2: working files
+- S3 Object Lock: retained audit bundles when configured
+- OpenAI: claim extraction and governed AI tasks
+- Gemini: embeddings
+- Inngest: durable workflows
 
-All provider clients are lazy. The project can lint, test, and build without credentials; a service
-throws a clear configuration error only when code attempts to use it.
+Provider clients load on demand so lint, tests, and builds do not require
+credentials.
 
-## Folder ownership
+## Repository map
 
 ```text
-src/app/             App Router pages, layouts, route handlers, and errors
-src/components/ui/   Owned shadcn primitives
-src/components/      Reusable product-level components and providers
-src/modules/         Domain policy, services, repositories, and public module APIs
-src/db/              Drizzle schema, database client, and tenant transaction context
-src/ai/              Prompt contracts, structured schemas, provider clients, and eval assets
-src/inngest/          Durable workflow client and functions
-src/lib/              Cross-cutting API, environment, logging, security, and storage utilities
-database/migrations/ Database-native schema and security invariants
-database/tests/      SQL invariant checks
-tests/               Unit, component, eval, mocks, and Playwright suites
+src/app/             pages, layouts, and route handlers
+src/components/      product components and UI primitives
+src/modules/         domain policy, services, and repositories
+src/db/              Drizzle schema and tenant transactions
+src/ai/              prompts, schemas, providers, and eval contracts
+src/inngest/          workflow functions
+src/lib/              shared infrastructure and security utilities
+database/migrations/ reviewed SQL migrations
+database/tests/      database invariant checks
+tests/               unit, eval, integration, and browser tests
 ```
 
-Do not import one domain module's private repository from another module. Add a public service or
-domain event instead. Shared code belongs in `src/lib` only when it has no domain meaning.
+Import another module through its public service. Keep repositories private to
+their domain. Put code in `src/lib` only when it has no domain meaning.
 
-## Environment configuration
+## Environment
 
-Copy `.env.example` to `.env.local`. Empty optional provider variables are accepted by the scaffold.
-The server environment parser validates every supplied value and secrets are never exported to
-client bundles.
+Copy `.env.example` to `.env.local`. The server validates supplied values and
+never exports secrets to the client.
 
-For local MinIO, use:
+Local MinIO defaults:
 
 ```text
 R2_ACCESS_KEY_ID=minioadmin
@@ -56,10 +56,7 @@ S3_ENDPOINT=http://localhost:9000
 S3_AUDIT_BUCKET=supersede-audit-development
 ```
 
-The MinIO console is available at `http://localhost:9001`.
-
-If those host ports are already occupied, keep MinIO's container ports stable
-and choose alternate host ports:
+Use alternate host ports when needed:
 
 ```bash
 MINIO_API_PORT=9010 MINIO_CONSOLE_PORT=9011 docker compose up -d minio minio-init
@@ -67,79 +64,66 @@ MINIO_API_PORT=9010 MINIO_CONSOLE_PORT=9011 docker compose up -d minio minio-ini
 
 Then set `R2_ENDPOINT` and `S3_ENDPOINT` to `http://localhost:9010`.
 
-## Authentication and tenant authorization
+## Authentication and tenancy
 
-WorkOS proves human and organization identity. Product roles stay in PostgreSQL. Never authorize a
-domain action from WorkOS role metadata or client input.
+WorkOS proves identity. PostgreSQL owns product roles and permissions.
 
-The request flow is:
+1. `src/proxy.ts` propagates the AuthKit session and applies the CSP nonce.
+2. The identity module resolves one active internal membership.
+3. `withTenantContext()` starts a transaction and sets actor and organization IDs.
+4. Service policy and RLS enforce authorization.
 
-1. `src/proxy.ts` propagates the encrypted AuthKit session and applies a nonce-based CSP.
-2. A Server Component, Server Action, or Route Handler calls the identity module.
-3. `app.resolve_actor()` maps WorkOS identifiers to one active internal membership.
-4. `withTenantContext()` starts a transaction and sets organization and actor IDs with
-   transaction-local PostgreSQL settings.
-5. RLS and service policy both enforce access.
-
-Production uses `DATABASE_RUNTIME_URL` for the dedicated non-owner `supersede_app` role created by
-the migrations. `DATABASE_URL` remains migration-owner-only. Do not deploy application queries with
-the migration owner.
+Production application queries must use `DATABASE_RUNTIME_URL` with the
+restricted `supersede_app` role. Reserve `DATABASE_URL` for migrations and seed
+operations.
 
 ## Database changes
 
-Edit the Drizzle schema, then generate a reviewed migration:
+Edit the Drizzle schema, then generate and review a migration:
 
 ```bash
 pnpm db:generate
 ```
 
-Database-native behavior such as RLS, triggers, recursive CTE helpers, vector indexes, and grants
-belongs in a named custom SQL migration. Never run `db:push` against shared or production databases.
-Production migrations follow expand/migrate/contract sequencing and do not run during application
-startup.
+Write custom SQL for RLS, triggers, recursive traversal, vector indexes, and
+grants. Use expand, migrate, contract sequencing in production. Never run
+`db:push` against shared or production databases.
 
-`approval_record` and `audit_event` are insert-only at the database layer. Approvals always point to
-a version ID; feature work must not weaken that constraint.
+`approval_record` and `audit_event` are insert-only. Approvals always reference
+an immutable version.
 
-## UI and design system
-
-Theme values live in `src/app/globals.css` as OKLCH custom properties. Use semantic utilities such as
-`bg-background`, `text-muted-foreground`, `border-border`, `text-success`, and confidence tokens.
-Do not add ad hoc hex values or product-wide palette classes in components.
-
-Use components in `src/components/ui` before building custom controls. Extend variants centrally
-with class-variance-authority. Keep Server Components as the default and add `"use client"` only at
-the smallest interactive boundary.
-
-## API conventions
+## API rules
 
 - External routes live under `/api/v1`.
-- Validate inputs with Zod and return RFC 9457-style problem details.
-- Include `x-request-id` in every response and log only opaque IDs.
-- Require `Idempotency-Key` on workflow-starting writes.
-- Authenticate and authorize each handler even when proxy matching is enabled.
-- State transitions, their ApprovalRecord, and outbox events commit in one transaction.
+- Validate input with Zod.
+- Return RFC 9457 problem details and `x-request-id`.
+- Require `Idempotency-Key` for workflow-starting writes.
+- Authenticate and authorize every handler.
+- Commit state transitions, approvals, audit events, and outbox events atomically.
 
-The development OpenAPI document is available at `/api/v1/openapi`.
+## UI rules
 
-## Testing
+Use semantic tokens from `src/app/globals.css` and existing components from
+`src/components/ui`. Keep Server Components as the default. Add `"use client"`
+at the smallest interactive boundary.
 
-- Vitest: domain utilities, API contracts, and AI schema/eval fixtures.
-- Testing Library + axe-core: components and accessibility.
-- SQL tests: RLS/trigger/catalog invariants.
-- Playwright: browser-to-API smoke paths and, later, the five-minute demo story.
-- MSW: external HTTP mocks. Live model calls are opt-in and never required for ordinary pull
-  requests.
+## Verification
 
-Every model or prompt change must update its version and pass a labeled eval. Never replace an
-ambiguous result with a forced old/new classification.
+```bash
+pnpm check
+pnpm db:test
+pnpm eval
+pnpm build
+pnpm test:e2e
+```
 
-## Security and privacy
+Prompt or model changes must increment the prompt version and pass the matching
+evals. Live provider checks remain separate from deterministic tests.
 
-- Use fictional data only until production privacy and processor gates are complete.
-- Do not log source text, probe answers, emails, tokens, cookies, or signed URLs.
-- Treat uploaded document instructions as untrusted content.
-- Keep object buckets private and issue short-lived signed URLs.
-- Store approved WORM exports in S3 Object Lock when policy requires it.
-- Do not describe the product as regulator-grade until the approval, retention, and export controls
-  are verified.
+## Security rules
+
+- Use fictional data until production privacy and processor gates pass.
+- Never log source text, probe answers, emails, credentials, cookies, or signed URLs.
+- Treat uploaded content as untrusted.
+- Keep buckets private and signed URLs short-lived.
+- Claim WORM retention only after a configured Object Lock write succeeds.

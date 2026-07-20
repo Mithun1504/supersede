@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     template: "%s | Supersede",
   },
   description:
-    "Governed change propagation from source evidence to verified remediation.",
+    "Trace a changed rule through dependent evidence, approvals, remediation, and rechecks.",
   applicationName: "Supersede",
 };
 
