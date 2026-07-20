@@ -6,6 +6,8 @@ reviewers authorize every governed action.
 
 The public demo uses fictional hospital data and is read-only.
 
+**Live app:** [supersede-bay.vercel.app](https://supersede-bay.vercel.app/)
+
 ## Product workflow
 
 1. Extract claims with exact source quotes.
@@ -17,6 +19,28 @@ The public demo uses fictional hospital data and is read-only.
 
 See [the product requirements](./docs/PRD.md) and
 [technical design](./docs/TECH_STACK.md) for the governing decisions.
+
+## How AI was used
+
+### Development
+
+- **Codex** was the agentic engineering environment used to inspect the
+  repository, implement and refactor the Next.js and TypeScript code, write
+  tests, run verification, and perform browser QA.
+- **GPT-5.6-sol** powered those Codex sessions. It reasoned across the product
+  requirements, technical design, implementation, and test failures. It is a
+  development-time model, separate from the model called by the live product.
+
+### Product integration
+
+Supersede calls **GPT-5.6** through the server-side OpenAI Responses API. It
+extracts claims, assesses load-bearing evidence, normalizes source changes,
+drafts divergence cases, grades non-exact probe responses, and reviews artifact
+corrections. Each task returns a Zod-validated structured result. Supersede then
+checks source hashes and exact quotes in application code, records model and
+prompt provenance, and requires human review for governed decisions. The API
+key stays on the server, and the integration fails closed when OpenAI is not
+configured.
 
 ## Local setup
 
